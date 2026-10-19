@@ -30,6 +30,10 @@ describe('Translation Provider Engine', () => {
   });
 
   it('factory instantiates requested provider types correctly', () => {
+    const geminiP = TranslationProviderFactory.getProvider('gemini');
+    expect(geminiP.id).toBe('gemini');
+    expect(geminiP.name).toContain('Gemini');
+
     const mockP = TranslationProviderFactory.getProvider('mock');
     expect(mockP.id).toBe('mock');
 
@@ -38,5 +42,9 @@ describe('Translation Provider Engine', () => {
 
     const anthropicP = TranslationProviderFactory.getProvider('anthropic');
     expect(anthropicP.id).toBe('anthropic');
+
+    const defaultP = TranslationProviderFactory.getProvider('unknown');
+    expect(defaultP.id).toBe('gemini');
   });
 });
+

@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Languages, Key, ShieldCheck, Zap, CheckCircle2, Play } from 'lucide-react';
 
 export const TranslationPage: React.FC = () => {
-  const [provider, setProvider] = useState<string>('mock');
+  const [provider, setProvider] = useState<string>('gemini');
   const [apiKey, setApiKey] = useState<string>('');
   const [targetLang, setTargetLang] = useState<string>('en');
   const [isSaved, setIsSaved] = useState<boolean>(false);
@@ -93,12 +93,24 @@ export const TranslationPage: React.FC = () => {
               onChange={e => setProvider(e.target.value)}
               className="bg-darkbg-900 border border-darkbg-700 rounded-xl px-3.5 py-2.5 text-xs text-white focus:outline-none focus:border-purple-500"
             >
-              <option value="mock">Local Simulator / Free Mock (No API Key Required)</option>
+              <option value="gemini">⭐ Google Gemini Flash (Free — Recommended)</option>
               <option value="openai">OpenAI (GPT-4o mini / Vision)</option>
-              <option value="anthropic">Anthropic (Claude 3.5 Sonnet / Haiku)</option>
-              <option value="deepl">DeepL API (Pro / Free)</option>
-              <option value="google">Google Cloud Translation</option>
+              <option value="anthropic">Anthropic (Claude 3.5 Haiku)</option>
+              <option value="mock">Local Simulator (No API Key — Dev Testing Only)</option>
             </select>
+            {provider === 'gemini' && (
+              <span className="text-[10px] text-emerald-400">
+                ✓ Free via Google AI Studio · No billing required · 15 req/min on free tier ·{' '}
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline hover:text-emerald-300"
+                >
+                  Get free API key →
+                </a>
+              </span>
+            )}
           </div>
 
           <div className="flex flex-col gap-1.5">

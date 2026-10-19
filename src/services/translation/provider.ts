@@ -219,15 +219,121 @@ export class AnthropicProvider implements TranslationProvider {
   }
 }
 
+export class GeminiProvider implements TranslationProvider {
+  id = 'gemini';
+  name = 'Google Gemini (Free Tier)';
+
+  async translateImage(
+    imageDataUrl: string,
+    config: TranslationEngineConfig
+  ): Promise<PageTranslationResult> {
+    if (!config.apiKey) {
+      throw new Error('Gemini API Key is required. Get a free key at aistudio.google.com — no billing needed.');
+    }
+
+    const pageHash = hashImageUrl(imageDataUrl);
+
+    // Extract base64 data (strip data URL header)
+    const match = imageDataUrl.match(/^data:([^;]+);base64,(.+)$/);
+    if (!match) {
+      throw new Error('Invalid image data URL format for Gemini');
+    }
+    const mimeType = match[1] as 'image/jpeg' | 'image/png' | 'image/webp';
+    const base64Data = match[2];
+
+    const prompt = `You are an expert manga/manhwa/manhua translator and typesetter.
+Analyze this comic page image carefully:
+1. Detect ALL speech bubbles, thought bubbles, dialogue captions, narration boxes, and sound effects.
+2. Follow correct manga reading order (right-to-left, top-to-bottom for Japanese manga; top-to-bottom, left-to-right for Korean manhwa).
+3. For each detected region, output its boundingBox as percentages (0–100) of the TOTAL image width and height: { "x": leftEdgePercent, "y": topEdgePercent, "width": regionWidthPercent, "height": regionHeightPercent }.
+4. Transcribe the original text into sourceText. Translate it naturally into ${config.targetLang.toUpperCase()} as translatedText.
+5. Output ONLY valid JSON in exactly this format, no markdown fences:
+{
+  "regions": [
+    {
+      "id": "bubble-1",
+      "boundingBox": { "x": 10.5, "y": 5.0, "width": 25.0, "height": 12.0 },
+      "sourceText": "original text",
+      "translatedText": "translated text",
+      "confidence": 0.95,
+      "readingOrder": 1
+    }
+  ]
+}`;
+
+    const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${config.apiKey}`;
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                inline_data: {
+                  mime_type: mimeType,
+                  data: base64Data,
+                },
+              },
+              { text: prompt },
+            ],
+          },
+        ],
+        generationConfig: {
+          temperature: 0.1,
+          maxOutputTokens: 2048,
+          responseMimeType: 'application/json',
+        },
+      }),
+    });
+
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Gemini API Error (${response.status}): ${errText}`);
+    }
+
+    const data = await response.json();
+    const rawText: string = data.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+
+    // Extract JSON robustly (strip any accidental markdown fences)
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : '{}');
+
+    return {
+      pageHash,
+      imageUrl: imageDataUrl.substring(0, 80) + '...',
+      sourceLanguage: config.sourceLang || 'auto',
+      targetLanguage: config.targetLang,
+      regions: (parsed.regions || []).map((r: any, idx: number) => ({
+        id: r.id || `bubble-${idx + 1}`,
+        boundingBox: r.boundingBox || { x: 0, y: 0, width: 0, height: 0 },
+        sourceText: r.sourceText || '',
+        translatedText: r.translatedText || '',
+        confidence: typeof r.confidence === 'number' ? r.confidence : 0.9,
+        readingOrder: r.readingOrder || idx + 1,
+      })),
+      providerUsed: 'Google Gemini (gemini-2.0-flash)',
+      createdAt: Date.now(),
+      costTokensEstimate: data.usageMetadata?.totalTokenCount || 0,
+    };
+  }
+}
+
 export class TranslationProviderFactory {
   public static getProvider(providerId: string): TranslationProvider {
     switch (providerId) {
+      case 'gemini':
+        return new GeminiProvider();
       case 'openai':
         return new OpenAIProvider();
       case 'anthropic':
         return new AnthropicProvider();
-      default:
+      case 'mock':
         return new MockTranslationProvider();
+      default:
+        // Default to Gemini (free, no server-side proxy required)
+        return new GeminiProvider();
     }
   }
 }
