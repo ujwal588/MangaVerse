@@ -64,6 +64,7 @@ export interface PageInitMessage {
   url: string;
   detectedSeries: DetectedSeriesMetadata;
   detectedChapter: DetectedChapterMetadata;
+  isOfflinePreload?: boolean;
 }
 
 export interface PageInitResponse {

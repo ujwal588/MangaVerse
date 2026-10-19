@@ -14,7 +14,8 @@
     "alarms",
     "notifications",
     "activeTab",
-    "offscreen"
+    "offscreen",
+    "scripting"
   ],
   "optional_host_permissions": [
     "https://*/*",

@@ -8,12 +8,17 @@ import { AnalyticsPage } from './pages/AnalyticsPage';
 import { SocialRoomPage } from './pages/SocialRoomPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { BookOpen, Bell, Calendar, Languages, Palette, BarChart3, Users, Settings, Download } from 'lucide-react';
-import { OfflineLibraryPage, OfflineReaderPage, OfflineSavePage } from './pages/OfflinePages';
+import { OfflineLibraryPage, OfflinePreloadPage, OfflineReaderPage, OfflineSavePage } from './pages/OfflinePages';
 
 export const Dashboard: React.FC = () => {
   const params = new URLSearchParams(window.location.search);
   const offlineSaveTabId = Number(params.get('offlineSaveTabId'));
   const offlineReaderChapterId = params.get('offlineReader');
+  const offlinePreloadMappingId = params.get('offlinePreloadMappingId');
+  const requestedPreloadCount = Number(params.get('offlinePreloadCount'));
+  const offlinePreloadCount = Number.isFinite(requestedPreloadCount)
+    ? Math.floor(Math.max(0, Math.min(20, requestedPreloadCount)))
+    : 0;
   const [activeTab, setActiveTab] = useState<'library' | 'offline' | 'updates' | 'queue' | 'translation' | 'studio' | 'social' | 'analytics' | 'settings'>(
     params.get('tab') === 'offline' ? 'offline' : 'library'
   );
@@ -23,6 +28,9 @@ export const Dashboard: React.FC = () => {
   }
   if (offlineReaderChapterId) {
     return <OfflineReaderPage chapterId={offlineReaderChapterId} />;
+  }
+  if (offlinePreloadMappingId) {
+    return <OfflinePreloadPage mappingId={offlinePreloadMappingId} count={offlinePreloadCount} />;
   }
 
   return (

@@ -34,7 +34,7 @@ chrome.runtime.onMessage.addListener((message: ExtensionMessage, sender, sendRes
 async function handleMessage(message: ExtensionMessage, sender?: chrome.runtime.MessageSender): Promise<any> {
   switch (message.type) {
     case 'PAGE_INIT': {
-      const { url, detectedSeries, detectedChapter } = message;
+      const { url, detectedSeries, detectedChapter, isOfflinePreload = false } = message;
       const parsedUrl = new URL(url);
       const sourceDomain = parsedUrl.hostname;
       let sourceName = 'generic';
@@ -72,7 +72,7 @@ async function handleMessage(message: ExtensionMessage, sender?: chrome.runtime.
       let progress = await db.progress.get(series.id);
       const now = Date.now();
 
-      if (!progress) {
+      if (!progress && !isOfflinePreload) {
         progress = {
           seriesId: series.id,
           lastReadChapterId: chapter.id,
@@ -83,18 +83,20 @@ async function handleMessage(message: ExtensionMessage, sender?: chrome.runtime.
           lastReadTimestamp: now,
           completedChapterIds: [],
         };
-      } else {
+      } else if (progress && !isOfflinePreload) {
         progress.lastReadChapterId = chapter.id;
         progress.lastReadChapterNumber = chapter.chapterNumber;
         progress.lastReadTimestamp = now;
       }
-      await db.progress.put(progress);
+      if (progress && !isOfflinePreload) await db.progress.put(progress);
 
       // Also ensure series has updated timestamp and current chapter
-      await db.series.update(series.id, {
-        lastReadChapterNumber: chapter.chapterNumber,
-        updatedAt: now,
-      });
+      if (!isOfflinePreload) {
+        await db.series.update(series.id, {
+          lastReadChapterNumber: chapter.chapterNumber,
+          updatedAt: now,
+        });
+      }
 
       const totalChapters = await db.chapters.where('seriesId').equals(series.id).count();
       const unreadCount = await db.chapters
@@ -172,7 +174,7 @@ async function handleMessage(message: ExtensionMessage, sender?: chrome.runtime.
     }
 
     case 'OPEN_DASHBOARD': {
-      const dashboardUrl = chrome.runtime.getURL('src/dashboard/index.html');
+      const dashboardUrl = chrome.runtime.getURL('dist/src/dashboard/index.html');
       chrome.tabs.create({ url: dashboardUrl });
       return { success: true };
     }
@@ -180,7 +182,7 @@ async function handleMessage(message: ExtensionMessage, sender?: chrome.runtime.
     case 'OPEN_OFFLINE_SAVER': {
       const tabId = sender?.tab?.id;
       if (tabId === undefined) return { success: false, error: 'Open the saver from a manga chapter page.' };
-      const url = new URL(chrome.runtime.getURL('src/dashboard/index.html'));
+      const url = new URL(chrome.runtime.getURL('dist/src/dashboard/index.html'));
       url.searchParams.set('offlineSaveTabId', String(tabId));
       await chrome.tabs.create({ url: url.toString() });
       return { success: true };
@@ -226,6 +228,9 @@ async function handleMessage(message: ExtensionMessage, sender?: chrome.runtime.
       const response = await fetch(parsedPageUrl.toString(), {
         credentials: 'include',
         referrer: record.sourceUrl,
+        // Some manga image CDNs hotlink-protect pages and require the complete
+        // chapter URL, not only the source site's origin, as the referrer.
+        referrerPolicy: 'no-referrer-when-downgrade',
       });
       if (!response.ok) throw new Error(`Page ${pageIndex + 1} returned HTTP ${response.status}.`);
       const image = await response.blob();

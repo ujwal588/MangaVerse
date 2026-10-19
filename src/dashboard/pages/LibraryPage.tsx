@@ -13,6 +13,8 @@ export const LibraryPage: React.FC = () => {
   const [selectedSeries, setSelectedSeries] = useState<Series | null>(null);
   const [seriesChapters, setSeriesChapters] = useState<Chapter[]>([]);
   const [seriesSources, setSeriesSources] = useState<SeriesSourceMapping[]>([]);
+  const [offlineAheadDrafts, setOfflineAheadDrafts] = useState<Record<string, string>>({});
+  const [savingOfflineAheadMappingId, setSavingOfflineAheadMappingId] = useState<string | null>(null);
   const [gapAnalysis, setGapAnalysis] = useState<GapAnalysisResult | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
@@ -45,15 +47,42 @@ export const LibraryPage: React.FC = () => {
     setGapAnalysis(analysis);
     setSeriesChapters(chs.reverse());
     setSeriesSources(sources);
+    setOfflineAheadDrafts(Object.fromEntries(sources.map(source => [source.id, String(source.offlineDownloadAhead ?? 0)])));
   };
 
-  const handleUpdateOfflineDownloadAhead = async (mapping: SeriesSourceMapping, rawValue: string) => {
+  const handleUpdateOfflineDownloadAhead = async (mapping: SeriesSourceMapping) => {
+    const rawValue = offlineAheadDrafts[mapping.id] ?? String(mapping.offlineDownloadAhead ?? 0);
     const parsed = Number.parseInt(rawValue, 10);
     const count = Number.isFinite(parsed) ? Math.max(0, Math.min(20, parsed)) : 0;
-    await db.sourceMappings.update(mapping.id, { offlineDownloadAhead: count });
-    setSeriesSources(current => current.map(source => source.id === mapping.id
-      ? { ...source, offlineDownloadAhead: count }
-      : source));
+    setSavingOfflineAheadMappingId(mapping.id);
+    try {
+      if (count > 0) {
+        const sourceOrigin = `${new URL(mapping.sourceSeriesUrl).origin}/*`;
+        const hasSourceAccess = await chrome.permissions.contains({ origins: [sourceOrigin] });
+        if (!hasSourceAccess) {
+          const granted = await chrome.permissions.request({ origins: [sourceOrigin] });
+          if (!granted) {
+            alert('MangaVerse needs access to this manga website to find and download its chapters. Allow access and confirm again.');
+            return;
+          }
+        }
+      }
+      await db.sourceMappings.update(mapping.id, { offlineDownloadAhead: count });
+      setSeriesSources(current => current.map(source => source.id === mapping.id
+        ? { ...source, offlineDownloadAhead: count }
+        : source));
+      setOfflineAheadDrafts(current => ({ ...current, [mapping.id]: String(count) }));
+      if (count > 0) {
+        const preloadUrl = new URL(chrome.runtime.getURL('dist/src/dashboard/index.html'));
+        preloadUrl.searchParams.set('offlinePreloadMappingId', mapping.id);
+        preloadUrl.searchParams.set('offlinePreloadCount', String(count));
+        await chrome.tabs.create({ url: preloadUrl.toString() });
+      }
+    } catch (error) {
+      alert(`Could not save the offline download setting: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setSavingOfflineAheadMappingId(null);
+    }
   };
 
   const handleReconcileProgress = async (seriesId: string) => {
@@ -417,7 +446,7 @@ export const LibraryPage: React.FC = () => {
               ) : (
                 <div className="flex flex-col gap-2">
                   {seriesSources.map(source => (
-                    <label key={source.id} className="flex items-center justify-between gap-3 text-xs text-gray-300">
+                    <div key={source.id} className="flex items-center justify-between gap-3 text-xs text-gray-300">
                       <span className="min-w-0 truncate" title={source.sourceSeriesUrl}>{source.sourceDomain}</span>
                       <span className="flex items-center gap-2 shrink-0">
                         <input
@@ -425,13 +454,25 @@ export const LibraryPage: React.FC = () => {
                           type="number"
                           min="0"
                           max="20"
-                          defaultValue={source.offlineDownloadAhead ?? 0}
-                          onBlur={event => void handleUpdateOfflineDownloadAhead(source, event.target.value)}
+                          value={offlineAheadDrafts[source.id] ?? String(source.offlineDownloadAhead ?? 0)}
+                          onChange={event => setOfflineAheadDrafts(current => ({ ...current, [source.id]: event.target.value }))}
                           className="bg-darkbg-900 border border-darkbg-700 text-xs text-white rounded-lg px-2 py-1 w-16 text-center focus:outline-none focus:border-purple-500"
                         />
                         <span className="text-[11px] text-gray-500">chapters</span>
+                        <button
+                          type="button"
+                          onClick={() => void handleUpdateOfflineDownloadAhead(source)}
+                          disabled={savingOfflineAheadMappingId === source.id || ((offlineAheadDrafts[source.id] ?? String(source.offlineDownloadAhead ?? 0)) === String(source.offlineDownloadAhead ?? 0) && Number.parseInt(offlineAheadDrafts[source.id] || '0', 10) <= 0)}
+                          className="min-w-16 px-2.5 py-1 rounded-lg text-[11px] font-semibold bg-purple-600/20 text-purple-200 border border-purple-500/30 hover:bg-purple-600/40 disabled:text-gray-500 disabled:bg-darkbg-900 disabled:border-darkbg-700 disabled:cursor-not-allowed"
+                        >
+                          {savingOfflineAheadMappingId === source.id
+                            ? 'Starting…'
+                            : Number.parseInt(offlineAheadDrafts[source.id] || '0', 10) > 0
+                              ? 'Confirm & Download'
+                              : (offlineAheadDrafts[source.id] ?? String(source.offlineDownloadAhead ?? 0)) === String(source.offlineDownloadAhead ?? 0) ? 'Confirmed' : 'Confirm'}
+                        </button>
                       </span>
-                    </label>
+                    </div>
                   ))}
                 </div>
               )}

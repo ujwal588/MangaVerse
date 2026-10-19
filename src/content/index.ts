@@ -12,7 +12,10 @@ let activeOfflineChapter: Omit<OfflineChapterInfo, 'pages'> | null = null;
 const MT_PORT = 7676;
 
 async function initContentScript(retryCount = 0) {
-  const url = window.location.href;
+  const pageUrl = new URL(window.location.href);
+  const isOfflinePreload = pageUrl.searchParams.get('mangaverse_offline_preload') === '1';
+  pageUrl.searchParams.delete('mangaverse_offline_preload');
+  const url = pageUrl.toString();
   const adapter = AdapterRegistry.getMatchingAdapter(url, document);
 
   if (!adapter) {
@@ -60,6 +63,7 @@ async function initContentScript(retryCount = 0) {
       url,
       detectedSeries: seriesMeta,
       detectedChapter: chapterMeta,
+      isOfflinePreload,
     };
 
     const response: PageInitResponse = await chrome.runtime.sendMessage(initMsg);
@@ -80,6 +84,10 @@ async function initContentScript(retryCount = 0) {
       sourceUrl: url,
       offlineDownloadAhead: response.offlineDownloadAhead ?? 0,
     };
+
+    // Preload tabs only collect chapter data. They must not create a visible HUD
+    // or overwrite the reader's actual reading progress.
+    if (isOfflinePreload) return;
 
     // Create Reader HUD
     const hud = new ReaderHUD({
@@ -160,6 +168,37 @@ async function initContentScript(retryCount = 0) {
 }
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === 'GET_SERIES_CHAPTER_LINKS') {
+    const seen = new Set<string>();
+    const chapters = Array.from(document.querySelectorAll<HTMLAnchorElement>('a[href]'))
+      .map((anchor) => {
+        const href = anchor.href;
+        const text = [anchor.textContent, anchor.getAttribute('title'), anchor.getAttribute('aria-label')]
+          .filter(Boolean)
+          .join(' ')
+          .replace(/\s+/g, ' ')
+          .trim();
+        const match = text.match(/(?:chapter|ch\.?|episode|ep\.?)\s*#?\s*(\d+(?:\.\d+)?)/i)
+          || href.match(/(?:chapter|ch|episode|ep)[_\/-]?(\d+(?:\.\d+)?)(?:\D|$)/i);
+        if (!match || seen.has(href)) return null;
+        try {
+          if (new URL(href).origin !== window.location.origin) return null;
+        } catch {
+          return null;
+        }
+        seen.add(href);
+        return {
+          url: href,
+          chapterNumber: Number(match[1]),
+          chapterLabel: text || `Chapter ${match[1]}`,
+        };
+      })
+      .filter((chapter): chapter is { url: string; chapterNumber: number; chapterLabel: string } => chapter !== null)
+      .sort((a, b) => a.chapterNumber - b.chapterNumber);
+    sendResponse({ success: true, chapters });
+    return;
+  }
+
   if (message?.type !== 'GET_OFFLINE_CHAPTER_INFO') return;
   if (!activeOfflineChapter || !activeAdapter) {
     sendResponse({ success: false, error: 'MangaVerse has not finished identifying this chapter yet.' });

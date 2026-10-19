@@ -1,171 +1,93 @@
-# MangaVerse — The Ultimate Manga Reading Companion
+# MangaVerse — Manga Reading Companion
 
-> **Version:** 1.0.0 (Phase 1 MVP Release)  
-> **Platform:** Chrome Extension Manifest V3 (Chromium: Chrome, Brave, Edge, Opera)  
-> **Architecture:** Local-First (IndexedDB + Dexie.js), Shadow-DOM In-Page HUD, Offline Chapter Reading, Manual Local Manga Translation
+MangaVerse is a local-first Chrome extension that adds reading progress, a library, update alerts, offline chapter storage, and companion tools to manga and webtoon sites. It is a browser extension, not a manga hosting service.
 
----
+## Current features
 
-## 🚀 Overview
+- **Reader HUD and progress tracking:** Detects series and chapters, tracks scroll position, restores reading position, and marks a chapter complete after 85% progress.
+- **Supported readers:** Dedicated adapters for MangaDex, LINE Webtoon, and Rawkuma, plus generic horizontal-page and long-strip detection on the hosts declared in `manifest.json`. Site layouts can change, so generic detection is not guaranteed on every page.
+- **Library:** Track series across linked sources, chapters, reading status, and binge thresholds. Library and reading data are stored in this browser using IndexedDB.
+- **Chapter updates:** Periodic checks and the Dashboard's **Check Now** action currently query MangaDex feeds. On-hold series can trigger binge alerts when their unread count reaches the chosen threshold.
+- **Offline reading:** Save the current chapter from the reader HUD, or configure a per-source chapter count in the Library and choose **Confirm & Download**. MangaVerse opens the source pages, collects chapter images, and stores them in IndexedDB. Use the Dashboard's **Offline** page to read or delete saved chapters.
+- **Manual translation:** MangaVerse can open a locally running MangaTranslator. Upload or paste the page there and translate it in that app. MangaVerse does not automatically send page images or translate them in the reader.
+- **Reading tools:** The Dashboard includes a reading queue, release cadence estimates, source health display, a local creative studio, reading insights, and a co-reading/spoiler-guard demo.
+- **Data portability:** Export or import the library as JSON, or wipe local extension data from Settings.
 
-**MangaVerse** is an open-standard, privacy-first browser companion that unifies your manga, manhwa, and webtoon reading across the websites you already use. Rather than forcing you onto a third-party aggregator, MangaVerse enhances your active reading pages with:
-- **Intelligent Chapter & Series Detection:** Deep integration with MangaDex official API + generic horizontal & vertical webtoon DOM heuristics.
-- **Sub-Pixel Scroll & Reading Position Recovery:** Remembers exact scroll offsets and marks chapters as read only when $\ge 85\%$ is consumed (never marking a chapter read just because you opened it).
-- **Intelligent Binge & Backlog Alerts:** Background alarms that notify you when an on-hold series accumulates enough unread chapters to binge (e.g. $\ge 10$ chapters), with multi-source duplicate suppression.
-- **Encapsulated In-Page Reader HUD:** Floating Shadow DOM toolbar that never clashes with host website CSS or leaks user credentials.
-- **Offline Chapter Reading:** Save chapter page images locally from supported readers, then read saved chapters without the source website or internet connection.
-- **Manual Local Translation:** The reader HUD and dashboard open MangaTranslator locally so you can upload or paste manga page images and read the translated result there. MangaVerse does not translate panels automatically.
-- **Creative Panel Studio:** Instant wallpaper and sticker generation with customizable dimensions (Mobile 9:16, Desktop 16:9, Sticker 1:1).
-- **100% Local-First & Zero Telemetry:** All library records and reading history reside in your local IndexedDB. Full JSON export/import and one-click data wipe.
+## Current limitations
 
----
+- Chapter detection and offline downloads depend on a supported page exposing readable chapter metadata and image URLs. A source or image CDN may block a request (for example, with HTTP 403), preventing some pages from saving.
+- Chrome asks for access to a manga site when needed for chapter discovery and download. Image-host access may also be requested before saving images.
+- Offline page images are stored only in the current browser profile and are **not** included in JSON library backups.
+- Automatic MangaVerse panel translation is currently disabled. MangaTranslator must be installed and run separately.
+- Chapter update polling currently supports MangaDex feeds only. The AniList and MyAnimeList controls in Settings are UI/demo controls; account authorization and live sync are not wired into the settings flow.
+- Social Rooms currently use an in-browser demo room manager; they do not provide a networked multi-user chat service.
 
-## 📦 How to Install and Test in Chrome / Chromium
+## Requirements
 
-### Step 1: Build the Extension
+- Node.js and npm to build the extension.
+- Chrome or another Chromium browser with Manifest V3 support.
+- Optional: [MangaTranslator](https://github.com/meangrinch/MangaTranslator) running locally on port `7676` for manual translation. Start it with `python app.py` from its project directory and configure its provider/API key in its local web UI at `http://localhost:7676`.
+
+## Build and install locally
+
+From the repository root:
+
 ```bash
-cd C:\Users\boosa\.gemini\antigravity\scratch\mangaverse
+npm install
 npm run build
 ```
-*(The production bundle is generated inside the `dist/` directory).*
 
-### Step 2: Load Unpacked into Chrome
-1. Open Google Chrome (or Brave, Edge, Opera).
-2. Navigate to `chrome://extensions/` in the URL bar.
-3. Toggle on **"Developer mode"** in the top-right corner.
-4. Click the **"Load unpacked"** button in the top-left corner.
-5. Select the build directory:
-   `C:\Users\boosa\.gemini\antigravity\scratch\mangaverse\dist`
-6. Pin **MangaVerse** to your browser toolbar!
+The build writes extension assets to `dist/`. To load the unpacked extension:
 
----
+1. Open `chrome://extensions` and enable **Developer mode**.
+2. Select **Load unpacked**.
+3. Choose the repository root—the directory containing the root `manifest.json` (not the `dist/` directory).
+4. After rebuilding, select **Reload** on the MangaVerse card.
 
-## 🧪 Testing the MVP Features
+## Use manual translation
 
-### 1. Test In-Page Detection & Reader HUD
-1. Navigate to any chapter on [MangaDex](https://mangadex.org), for example any popular chapter (e.g. Chainsaw Man or Frieren).
-2. Notice the purple **MangaVerse HUD pill** appearing in the bottom-right corner.
-3. Click the pill to expand it:
-   - Notice the detected Series Title and Chapter Number.
-   - Scroll down the chapter: watch the live progress bar and percentage update.
-   - Scroll past 85%: the chapter is automatically marked as completed (`✓`).
-   - Reload the page: MangaVerse smoothly restores your reading position.
+1. Start MangaTranslator with `python app.py` and keep it running on port `7676`.
+2. In MangaVerse, open **Manual Translation** in the Dashboard or choose **Open MangaTranslator** in the reader HUD.
+3. Upload or paste a manga page image into MangaTranslator and run translation there.
 
-### 2. Test Unified Library & Dashboard
-1. Click the MangaVerse icon in the Chrome toolbar.
-2. Click **"Full Library"** or open the extension options page (`chrome-extension://<id>/src/dashboard/index.html`).
-3. Explore the **Library tab**:
-   - Filter by Reading, On Hold, Plan to Read, Completed.
-   - Click any series card to open the **Series Detail Modal**: view all tracked chapters, mark individual chapters as read/unread, and customize the **Binge Alert Threshold**.
+MangaVerse only opens the local translator and checks whether it is available. The translator's API key remains configured in MangaTranslator and is not stored by MangaVerse.
 
-### 3. Test Binge Backlog & Chapter Updates
-1. Navigate to the **Updates tab** in the Dashboard.
-2. Click **"Check Now"** to trigger an immediate background check across tracked MangaDex feeds.
-3. If an on-hold series reaches its threshold, a high-priority **"Ready to Binge!"** notification will appear.
+## Save and read chapters offline
 
-### 4. Use Manual Manga Translation
-1. Start MangaTranslator from its project folder on port 7676:
-   ```powershell
-   .\.venv\Scripts\python.exe app.py --port 7676
-   ```
-2. Open a manga chapter and expand the MangaVerse HUD, then click **Open MangaTranslator**. You can also open the Dashboard's **Manual Translation** page.
-3. In MangaTranslator, upload or paste a page image. Configure your provider and API key under **Config → Translation**, then translate the page there.
-4. The HUD shows whether MangaTranslator is online. MangaVerse currently opens the local app; it does not send pages or translate them automatically.
+**Download chapters ahead:** In the Dashboard's **Library**, open a series, set **Download chapters ahead** for a linked source (0–20), then choose **Confirm & Download**. Grant source-site access if Chrome prompts. MangaVerse selects unread chapters after your last-read chapter; if no reading progress is recorded, it selects the latest available chapters. Allow image-host access when prompted to save the prepared pages.
 
-### 5. Save Chapters for Offline Reading
-1. In the Library, open a series and set **Download chapters ahead** for each linked website (0–20; 0 saves only the current chapter).
-2. Open a supported manga chapter while online. For lazy-loaded readers, scroll through the chapter once so every page is present.
-3. Expand the MangaVerse HUD and click **Save Chapter Offline**. Review the current chapter and any same-site next chapters found, then click **Download**.
-4. Chrome asks for access to the image hosts used by those chapters; MangaVerse requests only those hosts for the download.
-5. Open the Dashboard's **Offline** tab and choose **Read offline**. Saved page images stay in this browser's local IndexedDB and can be deleted from the Offline tab.
+**Save the current chapter:** Open a supported chapter, expand the reader HUD, and choose **Save Chapter Offline**. Some readers lazy-load images; scroll through the chapter first if pages are missing.
 
-Ahead downloads depend on the reader page exposing a usable next-chapter link. If a site does not expose one, MangaVerse can still save the current chapter.
+Open **Offline** in the Dashboard to see saved chapters. Downloads require the source and its image hosts to allow access; an HTTP error can leave a chapter partially saved. Stored image data remains on this browser and can be removed from the Offline page.
 
-MangaVerse stores page images and chapter metadata rather than the original website HTML. Offline downloads are not included in JSON library backups, so save them again on another device.
+## Tests
 
-### 6. Test Backup, Portability & Privacy Wipe
-1. Navigate to the **Settings tab**.
-2. Click **"Export Library (JSON)"**: verify that a valid `.json` backup file is downloaded containing your series, chapters, and progress.
-3. Click **"Import Library Backup"** to restore state.
-4. Click **"Wipe All Local Data"** to verify GDPR/Privacy compliant data erasure.
+Run the project's Vitest suite with:
 
----
-
-## 🛠️ Automated Unit & Integration Tests
-
-Run the test suite with:
 ```bash
 npm test
 ```
 
-### Verified Test Suites:
-- `tests/chapterNormalizer.test.ts`: Verifies parsing of decimals (`12.5`), season prefixes (`Season 2 Ch 38`), letter suffixes (`14a`), and prologues (`Ch 0`).
-- `tests/seriesResolver.test.ts`: Verifies canonical slug generation and string similarity dice coefficients.
-- `tests/updateChecker.test.ts`: Verifies binge threshold rules and unread backlog logic.
-- `tests/exportImport.test.ts`: Verifies JSON schema serialization, backup validation, and corrupt payload rejection.
+The tests cover chapter normalization, series matching, progress/gap logic, update alerts, backup import/export, translation providers and cache, terminology, source health, session tracking, tracker helpers, and social room utilities.
 
----
+## Project transcript
 
-## 📂 Project Structure
+The project conversation archive is [`docs/transcripts/AI-Transcript.jsonl`](docs/transcripts/AI-Transcript.jsonl). It contains the earlier project transcript and subsequent continuation entries, including a summary of the recent offline-reading debugging session.
 
-```
+## Project layout
+
+```text
 mangaverse/
-├── package.json
-├── tsconfig.json
-├── vite.config.ts
-├── tailwind.config.js
-├── postcss.config.js
-├── public/
-│   ├── manifest.json
-│   └── icons/
+├── manifest.json                 # Root unpacked-extension manifest
+├── public/                       # Static assets and manifest copy
 ├── src/
-│   ├── background/
-│   │   ├── index.ts           # Service worker & message routing
-│   │   ├── alarms.ts          # Chrome alarms (60 min periodic updates)
-│   │   ├── notifications.ts   # Desktop alerts & click handlers
-│   │   └── updateChecker.ts   # MangaDex API feed & binge evaluator
-│   ├── content/
-│   │   ├── index.ts           # Content script entry point
-│   │   ├── scrollTracker.ts   # Sub-pixel scroll & 85% completion threshold
-│   │   ├── hud/
-│   │   │   ├── ReaderHUD.ts   # Isolated Shadow DOM component
-│   │   │   └── ReaderHUD.css  # Scoped HUD stylesheet
-│   │   └── adapters/
-│   │       ├── base.ts
-│   │       ├── mangadex.ts    # Official MangaDex API & DOM adapter
-│   │       ├── genericHorizontal.ts
-│   │       ├── genericLongstrip.ts
-│   │       └── registry.ts    # Adapter router
-│   ├── dashboard/
-│   │   ├── index.html
-│   │   ├── index.tsx
-│   │   ├── Dashboard.tsx      # Main layout & navigation
-│   │   └── pages/
-│   │       ├── LibraryPage.tsx
-│   │       ├── UpdatesPage.tsx
-│   │       ├── TranslationPage.tsx
-│   │       ├── CreativeStudioPage.tsx
-│   │       ├── AnalyticsPage.tsx
-│   │       └── SettingsPage.tsx
-│   ├── popup/
-│   │   ├── index.html
-│   │   ├── index.tsx
-│   │   └── Popup.tsx          # Compact quick-access popup
-│   ├── offscreen/
-│   │   ├── index.html
-│   │   └── offscreen.ts       # Canvas image crop & CORS worker
-│   ├── services/
-│   │   ├── db.ts              # Dexie.js IndexedDB relational schema
-│   │   ├── chapterNormalizer.ts
-│   │   ├── seriesResolver.ts  # Canonical slugs & title matching
-│   │   └── exportImport.ts    # Backup, restore & data wipe
-│   └── types/
-│       ├── library.ts
-│       ├── adapter.ts
-│       └── messages.ts
-└── tests/
-    ├── chapterNormalizer.test.ts
-    ├── seriesResolver.test.ts
-    ├── updateChecker.test.ts
-    └── exportImport.test.ts
+│   ├── background/               # MV3 service worker, alarms, update checks
+│   ├── content/                  # Reader detection, HUD, site adapters
+│   ├── dashboard/                # Library and feature pages, including Offline
+│   ├── offscreen/                # Offscreen canvas helpers
+│   ├── popup/                    # Toolbar popup
+│   ├── services/                 # IndexedDB, progress, queue, translation helpers
+│   └── types/                    # Shared TypeScript types and messages
+├── tests/                        # Vitest suites
+└── docs/transcripts/             # Project conversation archive
 ```
