@@ -93,6 +93,7 @@ export const SettingsPage: React.FC = () => {
       <div>
         <h1 className="text-2xl font-black text-white tracking-tight">Settings & Data Management</h1>
         <p className="text-sm text-gray-400">Manage data portability, tracker sync, backup files, and update notification preferences.</p>
+        <p className="text-xs text-gray-500 mt-2">Offline chapter images stay in this browser and are not included in JSON backups; save them again on another device.</p>
       </div>
 
       {statusMessage && (

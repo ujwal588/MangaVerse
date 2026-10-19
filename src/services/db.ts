@@ -1,5 +1,5 @@
-import Dexie, { type EntityTable } from 'dexie';
-import { Series, SeriesSourceMapping, Chapter, ReadingProgress, NotificationRecord, ReadingSession } from '../types/library';
+import Dexie, { type EntityTable, type Table } from 'dexie';
+import { Series, SeriesSourceMapping, Chapter, ReadingProgress, NotificationRecord, ReadingSession, OfflineChapter, OfflinePage } from '../types/library';
 import { PageTranslationResult, TerminologyGlossaryEntry } from './translation/types';
 
 export class MangaVerseDatabase extends Dexie {
@@ -11,6 +11,8 @@ export class MangaVerseDatabase extends Dexie {
   sessions!: EntityTable<ReadingSession, 'id'>;
   translationCache!: EntityTable<PageTranslationResult, 'pageHash'>;
   glossary!: EntityTable<TerminologyGlossaryEntry, 'id'>;
+  offlineChapters!: EntityTable<OfflineChapter, 'chapterId'>;
+  offlinePages!: Table<OfflinePage, [string, number]>;
 
   constructor() {
     super('MangaVerseDB');
@@ -26,6 +28,11 @@ export class MangaVerseDatabase extends Dexie {
     this.version(2).stores({
       translationCache: 'pageHash, imageUrl, createdAt',
       glossary: 'id, seriesId, sourceTerm, targetTerm, [seriesId+sourceTerm]',
+    });
+
+    this.version(3).stores({
+      offlineChapters: 'chapterId, seriesId, savedAt, status',
+      offlinePages: '[chapterId+pageIndex], chapterId',
     });
   }
 }

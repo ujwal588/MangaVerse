@@ -1,11 +1,13 @@
 import { AdapterRegistry } from './adapters/registry';
 import { ScrollTracker } from './scrollTracker';
 import { ReaderHUD } from './hud/ReaderHUD';
-import { PageInitMessage, PageInitResponse, UpdateProgressMessage } from '../types/messages';
+import { PageInitMessage, PageInitResponse, UpdateProgressMessage, OfflineChapterInfo } from '../types/messages';
 
 let activeHUD: ReaderHUD | null = null;
 let activeTracker: ScrollTracker | null = null;
 let currentTrackingUrl: string = '';
+let activeAdapter: ReturnType<typeof AdapterRegistry.getMatchingAdapter> = null;
+let activeOfflineChapter: Omit<OfflineChapterInfo, 'pages'> | null = null;
 
 const MT_PORT = 7676;
 
@@ -68,6 +70,15 @@ async function initContentScript(retryCount = 0) {
     }
 
     const { series, currentChapter, progress } = response;
+    activeAdapter = adapter;
+    activeOfflineChapter = {
+      chapterId: currentChapter.id,
+      seriesId: series.id,
+      seriesTitle: series.title,
+      chapterNumber: currentChapter.chapterNumber,
+      chapterLabel: currentChapter.chapterLabel,
+      sourceUrl: currentChapter.sourceUrl,
+    };
 
     // Create Reader HUD
     const hud = new ReaderHUD({
@@ -81,6 +92,9 @@ async function initContentScript(retryCount = 0) {
       },
       onOpenTranslator: () => {
         chrome.runtime.sendMessage({ type: 'OPEN_MANGA_TRANSLATOR', port: MT_PORT });
+      },
+      onSaveOffline: () => {
+        chrome.runtime.sendMessage({ type: 'OPEN_OFFLINE_SAVER' });
       },
       onToggleCompleted: (isCompleted) => {
         const updateMsg: UpdateProgressMessage = {
@@ -143,6 +157,42 @@ async function initContentScript(retryCount = 0) {
     console.error('[MangaVerse] Error initializing reading companion:', err);
   }
 }
+
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type !== 'GET_OFFLINE_CHAPTER_INFO') return;
+  if (!activeOfflineChapter || !activeAdapter) {
+    sendResponse({ success: false, error: 'MangaVerse has not finished identifying this chapter yet.' });
+    return;
+  }
+
+  const seen = new Set<string>();
+  const pages = activeAdapter.extractPageElements(document)
+    .filter((element): element is HTMLImageElement => element instanceof HTMLImageElement)
+    .map((image) => {
+      image.loading = 'eager';
+      const candidates = [
+        image.getAttribute('data-src'),
+        image.getAttribute('data-lazy-src'),
+        image.getAttribute('data-original'),
+        image.getAttribute('data-cfsrc'),
+        image.currentSrc,
+        image.getAttribute('src'),
+      ];
+      const rawUrl = candidates.find((candidate) => candidate && !/^(?:data|blob):/i.test(candidate));
+      if (!rawUrl) return null;
+      try {
+        const url = new URL(rawUrl, window.location.href).toString();
+        if (!/^https?:/i.test(url) || seen.has(url)) return null;
+        seen.add(url);
+        return { url, alt: image.alt || undefined };
+      } catch {
+        return null;
+      }
+    })
+    .filter((page): page is { url: string; alt: string | undefined } => page !== null);
+
+  sendResponse({ success: true, chapter: { ...activeOfflineChapter, pages } });
+});
 
 // Run when DOM is ready
 if (document.readyState === 'loading') {

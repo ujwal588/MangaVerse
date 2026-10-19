@@ -115,6 +115,14 @@
   border-color: rgba(168, 85, 247, 0.4);
 }
 
+.mangaverse-offline-link {
+  width: 100%;
+  justify-content: center;
+  margin-top: 10px;
+  background: rgba(16, 185, 129, 0.14);
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
 .mangaverse-btn {
   background: rgba(255, 255, 255, 0.08);
   border: 1px solid rgba(255, 255, 255, 0.1);

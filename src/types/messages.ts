@@ -11,8 +11,51 @@ export type ExtensionMessageType =
   | 'UPDATE_CHECK_COMPLETE'
   | 'OPEN_DASHBOARD'
   | 'OPEN_MANGA_TRANSLATOR'
+  | 'OPEN_OFFLINE_SAVER'
+  | 'OFFLINE_SAVE_START'
+  | 'OFFLINE_SAVE_PAGE'
+  | 'OFFLINE_SAVE_FINISH'
   | 'MT_CHECK'
   | 'MT_CHECK_RESPONSE';
+
+export interface OfflinePageSource {
+  url: string;
+  alt?: string;
+}
+
+export interface OfflineChapterInfo {
+  chapterId: string;
+  seriesId: string;
+  seriesTitle: string;
+  chapterNumber: number;
+  chapterLabel: string;
+  sourceUrl: string;
+  pages: OfflinePageSource[];
+}
+
+export interface OpenOfflineSaverMessage {
+  type: 'OPEN_OFFLINE_SAVER';
+}
+
+export interface OfflineSaveStartMessage {
+  type: 'OFFLINE_SAVE_START';
+  chapter: Omit<OfflineChapterInfo, 'pages'>;
+  pageCount: number;
+}
+
+export interface OfflineSavePageMessage {
+  type: 'OFFLINE_SAVE_PAGE';
+  chapterId: string;
+  pageIndex: number;
+  pageUrl: string;
+}
+
+export interface OfflineSaveFinishMessage {
+  type: 'OFFLINE_SAVE_FINISH';
+  chapterId: string;
+  success: boolean;
+  error?: string;
+}
 
 export interface PageInitMessage {
   type: 'PAGE_INIT';
@@ -77,5 +120,9 @@ export type ExtensionMessage =
   | CheckUpdatesResponse
   | OpenDashboardMessage
   | OpenMangaTranslatorMessage
+  | OpenOfflineSaverMessage
+  | OfflineSaveStartMessage
+  | OfflineSavePageMessage
+  | OfflineSaveFinishMessage
   | MtCheckMessage
   | MtCheckResponse;

@@ -81,7 +81,12 @@ export const LibraryPage: React.FC = () => {
 
   const handleDeleteSeries = async (seriesId: string) => {
     if (confirm('Are you sure you want to delete this series and its reading history?')) {
-      await db.transaction('rw', db.series, db.sourceMappings, db.chapters, db.progress, async () => {
+      await db.transaction('rw', [db.series, db.sourceMappings, db.chapters, db.progress, db.offlineChapters, db.offlinePages], async () => {
+        const offlineChapters = await db.offlineChapters.where('seriesId').equals(seriesId).toArray();
+        for (const offlineChapter of offlineChapters) {
+          await db.offlinePages.where('chapterId').equals(offlineChapter.chapterId).delete();
+          await db.offlineChapters.delete(offlineChapter.chapterId);
+        }
         await db.series.delete(seriesId);
         await db.sourceMappings.where('seriesId').equals(seriesId).delete();
         await db.chapters.where('seriesId').equals(seriesId).delete();

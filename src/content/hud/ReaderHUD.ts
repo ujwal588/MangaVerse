@@ -7,6 +7,7 @@ export interface ReaderHUDProps {
   onReadingModeChange?: (mode: 'ltr' | 'rtl' | 'vertical') => void;
   onToggleCompleted?: (isCompleted: boolean) => void;
   onOpenTranslator?: () => void;
+  onSaveOffline?: () => void;
   onOpenDashboard?: () => void;
 }
 
@@ -25,6 +26,7 @@ export class ReaderHUD {
   private onReadingModeChange?: (mode: 'ltr' | 'rtl' | 'vertical') => void;
   private onToggleCompleted?: (isCompleted: boolean) => void;
   private onOpenTranslator?: () => void;
+  private onSaveOffline?: () => void;
   private onOpenDashboard?: () => void;
 
   constructor(props: ReaderHUDProps) {
@@ -36,6 +38,7 @@ export class ReaderHUD {
     this.onReadingModeChange = props.onReadingModeChange;
     this.onToggleCompleted = props.onToggleCompleted;
     this.onOpenTranslator = props.onOpenTranslator;
+    this.onSaveOffline = props.onSaveOffline;
     this.onOpenDashboard = props.onOpenDashboard;
 
     this.hostElement = document.createElement('div');
@@ -155,6 +158,9 @@ export class ReaderHUD {
           Library
         </button>
       </div>
+      <button class="mangaverse-btn mangaverse-offline-link" id="btn-save-offline" title="Save this chapter's page images for offline reading">
+        Save Chapter Offline
+      </button>
       <button class="mangaverse-btn mangaverse-translator-link" id="btn-open-translator" title="Open MangaTranslator to upload a page image manually">
         Open MangaTranslator
       </button>
@@ -179,6 +185,11 @@ export class ReaderHUD {
     expandedSection.querySelector('#btn-open-translator')?.addEventListener('click', (e) => {
       e.stopPropagation();
       this.onOpenTranslator?.();
+    });
+
+    expandedSection.querySelector('#btn-save-offline')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.onSaveOffline?.();
     });
 
     expandedSection.querySelector('#btn-reading-mode')?.addEventListener('click', (e) => {

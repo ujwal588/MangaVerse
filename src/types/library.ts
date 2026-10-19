@@ -85,3 +85,27 @@ export interface ReadingSession {
   endedAt: number;
   durationSeconds: number;
 }
+
+export interface OfflineChapter {
+  chapterId: string;
+  seriesId: string;
+  seriesTitle: string;
+  chapterNumber: number;
+  chapterLabel: string;
+  sourceUrl: string;
+  savedAt: number;
+  status: 'downloading' | 'ready' | 'failed';
+  pageCount: number;
+  downloadedPages: number;
+  totalBytes: number;
+  error?: string;
+}
+
+export interface OfflinePage {
+  chapterId: string;
+  pageIndex: number;
+  image: Blob;
+  mimeType: string;
+  sourceUrl: string;
+  byteSize: number;
+}

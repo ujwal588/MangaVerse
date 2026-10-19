@@ -2,7 +2,7 @@
 
 > **Version:** 1.0.0 (Phase 1 MVP Release)  
 > **Platform:** Chrome Extension Manifest V3 (Chromium: Chrome, Brave, Edge, Opera)  
-> **Architecture:** Local-First (IndexedDB + Dexie.js), Shadow-DOM In-Page HUD, Manual Local Manga Translation  
+> **Architecture:** Local-First (IndexedDB + Dexie.js), Shadow-DOM In-Page HUD, Offline Chapter Reading, Manual Local Manga Translation
 
 ---
 
@@ -13,6 +13,7 @@
 - **Sub-Pixel Scroll & Reading Position Recovery:** Remembers exact scroll offsets and marks chapters as read only when $\ge 85\%$ is consumed (never marking a chapter read just because you opened it).
 - **Intelligent Binge & Backlog Alerts:** Background alarms that notify you when an on-hold series accumulates enough unread chapters to binge (e.g. $\ge 10$ chapters), with multi-source duplicate suppression.
 - **Encapsulated In-Page Reader HUD:** Floating Shadow DOM toolbar that never clashes with host website CSS or leaks user credentials.
+- **Offline Chapter Reading:** Save chapter page images locally from supported readers, then read saved chapters without the source website or internet connection.
 - **Manual Local Translation:** The reader HUD and dashboard open MangaTranslator locally so you can upload or paste manga page images and read the translated result there. MangaVerse does not translate panels automatically.
 - **Creative Panel Studio:** Instant wallpaper and sticker generation with customizable dimensions (Mobile 9:16, Desktop 16:9, Sticker 1:1).
 - **100% Local-First & Zero Telemetry:** All library records and reading history reside in your local IndexedDB. Full JSON export/import and one-click data wipe.
@@ -71,7 +72,15 @@ npm run build
 3. In MangaTranslator, upload or paste a page image. Configure your provider and API key under **Config → Translation**, then translate the page there.
 4. The HUD shows whether MangaTranslator is online. MangaVerse currently opens the local app; it does not send pages or translate them automatically.
 
-### 5. Test Backup, Portability & Privacy Wipe
+### 5. Save a Chapter for Offline Reading
+1. Open a supported manga chapter while online. For lazy-loaded readers, scroll through the chapter once so every page is present.
+2. Expand the MangaVerse HUD and click **Save Chapter Offline**.
+3. Review the chapter and click **Download chapter**. Chrome asks for access to the image hosts used by that chapter; MangaVerse requests only those hosts for the download.
+4. Open the Dashboard's **Offline** tab and choose **Read offline**. Saved page images stay in this browser's local IndexedDB and can be deleted from the Offline tab.
+
+MangaVerse stores page images and chapter metadata rather than the original website HTML. Offline downloads are not included in JSON library backups, so save them again on another device.
+
+### 6. Test Backup, Portability & Privacy Wipe
 1. Navigate to the **Settings tab**.
 2. Click **"Export Library (JSON)"**: verify that a valid `.json` backup file is downloaded containing your series, chapters, and progress.
 3. Click **"Import Library Backup"** to restore state.

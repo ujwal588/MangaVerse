@@ -7,10 +7,23 @@ import { CreativeStudioPage } from './pages/CreativeStudioPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { SocialRoomPage } from './pages/SocialRoomPage';
 import { SettingsPage } from './pages/SettingsPage';
-import { BookOpen, Bell, Calendar, Languages, Palette, BarChart3, Users, Settings } from 'lucide-react';
+import { BookOpen, Bell, Calendar, Languages, Palette, BarChart3, Users, Settings, Download } from 'lucide-react';
+import { OfflineLibraryPage, OfflineReaderPage, OfflineSavePage } from './pages/OfflinePages';
 
 export const Dashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'library' | 'updates' | 'queue' | 'translation' | 'studio' | 'social' | 'analytics' | 'settings'>('library');
+  const params = new URLSearchParams(window.location.search);
+  const offlineSaveTabId = Number(params.get('offlineSaveTabId'));
+  const offlineReaderChapterId = params.get('offlineReader');
+  const [activeTab, setActiveTab] = useState<'library' | 'offline' | 'updates' | 'queue' | 'translation' | 'studio' | 'social' | 'analytics' | 'settings'>(
+    params.get('tab') === 'offline' ? 'offline' : 'library'
+  );
+
+  if (Number.isInteger(offlineSaveTabId) && offlineSaveTabId > 0) {
+    return <OfflineSavePage sourceTabId={offlineSaveTabId} />;
+  }
+  if (offlineReaderChapterId) {
+    return <OfflineReaderPage chapterId={offlineReaderChapterId} />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-darkbg-900 text-gray-100">
@@ -30,6 +43,7 @@ export const Dashboard: React.FC = () => {
           <nav className="flex items-center gap-1 bg-darkbg-900/80 p-1 rounded-2xl border border-darkbg-700/60 overflow-x-auto">
             {[
               { id: 'library', label: 'Library', icon: BookOpen },
+              { id: 'offline', label: 'Offline', icon: Download },
               { id: 'updates', label: 'Updates', icon: Bell },
               { id: 'queue', label: 'Queue & Radar', icon: Calendar },
               { id: 'translation', label: 'Manual Translation', icon: Languages },
@@ -62,6 +76,7 @@ export const Dashboard: React.FC = () => {
       {/* Main Page Content */}
       <main className="flex-1">
         {activeTab === 'library' && <LibraryPage />}
+        {activeTab === 'offline' && <OfflineLibraryPage />}
         {activeTab === 'updates' && <UpdatesPage />}
         {activeTab === 'queue' && <QueueCalendarPage />}
         {activeTab === 'translation' && <TranslationPage />}

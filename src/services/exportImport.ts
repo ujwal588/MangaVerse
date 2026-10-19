@@ -71,13 +71,15 @@ export async function importLibraryFromJson(jsonString: string): Promise<{ impor
 }
 
 export async function wipeAllUserData(): Promise<void> {
-  await db.transaction('rw', [db.series, db.sourceMappings, db.chapters, db.progress, db.notifications, db.sessions], async () => {
+  await db.transaction('rw', [db.series, db.sourceMappings, db.chapters, db.progress, db.notifications, db.sessions, db.offlineChapters, db.offlinePages], async () => {
     await db.series.clear();
     await db.sourceMappings.clear();
     await db.chapters.clear();
     await db.progress.clear();
     await db.notifications.clear();
     await db.sessions.clear();
+    await db.offlineChapters.clear();
+    await db.offlinePages.clear();
   });
 
   if (typeof chrome !== 'undefined' && chrome.storage?.local) {
