@@ -5,11 +5,12 @@ import { QueueCalendarPage } from './pages/QueueCalendarPage';
 import { TranslationPage } from './pages/TranslationPage';
 import { CreativeStudioPage } from './pages/CreativeStudioPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
+import { SocialRoomPage } from './pages/SocialRoomPage';
 import { SettingsPage } from './pages/SettingsPage';
-import { BookOpen, Bell, Calendar, Languages, Palette, BarChart3, Settings } from 'lucide-react';
+import { BookOpen, Bell, Calendar, Languages, Palette, BarChart3, Users, Settings } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'library' | 'updates' | 'queue' | 'translation' | 'studio' | 'analytics' | 'settings'>('library');
+  const [activeTab, setActiveTab] = useState<'library' | 'updates' | 'queue' | 'translation' | 'studio' | 'social' | 'analytics' | 'settings'>('library');
 
   return (
     <div className="min-h-screen flex flex-col bg-darkbg-900 text-gray-100">
@@ -33,6 +34,7 @@ export const Dashboard: React.FC = () => {
               { id: 'queue', label: 'Queue & Radar', icon: Calendar },
               { id: 'translation', label: 'Translation (BYOK)', icon: Languages },
               { id: 'studio', label: 'Creative Studio', icon: Palette },
+              { id: 'social', label: 'Social Rooms', icon: Users },
               { id: 'analytics', label: 'Insights', icon: BarChart3 },
               { id: 'settings', label: 'Settings', icon: Settings },
             ].map((tab) => {
@@ -64,6 +66,7 @@ export const Dashboard: React.FC = () => {
         {activeTab === 'queue' && <QueueCalendarPage />}
         {activeTab === 'translation' && <TranslationPage />}
         {activeTab === 'studio' && <CreativeStudioPage />}
+        {activeTab === 'social' && <SocialRoomPage />}
         {activeTab === 'analytics' && <AnalyticsPage />}
         {activeTab === 'settings' && <SettingsPage />}
       </main>
