@@ -72,11 +72,14 @@ npm run build
 3. In MangaTranslator, upload or paste a page image. Configure your provider and API key under **Config → Translation**, then translate the page there.
 4. The HUD shows whether MangaTranslator is online. MangaVerse currently opens the local app; it does not send pages or translate them automatically.
 
-### 5. Save a Chapter for Offline Reading
-1. Open a supported manga chapter while online. For lazy-loaded readers, scroll through the chapter once so every page is present.
-2. Expand the MangaVerse HUD and click **Save Chapter Offline**.
-3. Review the chapter and click **Download chapter**. Chrome asks for access to the image hosts used by that chapter; MangaVerse requests only those hosts for the download.
-4. Open the Dashboard's **Offline** tab and choose **Read offline**. Saved page images stay in this browser's local IndexedDB and can be deleted from the Offline tab.
+### 5. Save Chapters for Offline Reading
+1. In the Library, open a series and set **Download chapters ahead** for each linked website (0–20; 0 saves only the current chapter).
+2. Open a supported manga chapter while online. For lazy-loaded readers, scroll through the chapter once so every page is present.
+3. Expand the MangaVerse HUD and click **Save Chapter Offline**. Review the current chapter and any same-site next chapters found, then click **Download**.
+4. Chrome asks for access to the image hosts used by those chapters; MangaVerse requests only those hosts for the download.
+5. Open the Dashboard's **Offline** tab and choose **Read offline**. Saved page images stay in this browser's local IndexedDB and can be deleted from the Offline tab.
+
+Ahead downloads depend on the reader page exposing a usable next-chapter link. If a site does not expose one, MangaVerse can still save the current chapter.
 
 MangaVerse stores page images and chapter metadata rather than the original website HTML. Offline downloads are not included in JSON library backups, so save them again on another device.
 

@@ -38,6 +38,8 @@ export interface SeriesSourceMapping {
   lastCheckedAt?: number;
   latestSourceChapter?: string;
   isPrimary: boolean;
+  /** Number of next chapters to fetch for offline reading from this source (0 disables ahead downloads). */
+  offlineDownloadAhead?: number;
 }
 
 export interface Chapter {

@@ -31,7 +31,11 @@ export const OfflineSavePage: React.FC<OfflineSavePageProps> = ({ sourceTabId })
   const [chapter, setChapter] = useState<OfflineChapterInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [chaptersToSave, setChaptersToSave] = useState<OfflineChapterInfo[]>([]);
+  const [prepareMessage, setPrepareMessage] = useState('');
   const [savedPages, setSavedPages] = useState(0);
+  const [saveProgress, setSaveProgress] = useState('');
   const [error, setError] = useState('');
   const [isReady, setIsReady] = useState(false);
 
@@ -43,9 +47,7 @@ export const OfflineSavePage: React.FC<OfflineSavePageProps> = ({ sourceTabId })
         if (!response?.success || !response.chapter) {
           throw new Error(response?.error || 'Could not read the current chapter. Return to the chapter and try again.');
         }
-        if (!response.chapter.pages.length) {
-          throw new Error('No chapter images were found. Scroll through the chapter online so lazy-loaded pages appear, then try again.');
-        }
+        if (!response.chapter.pages.length) throw new Error('No chapter images were found. Scroll through the chapter online so lazy-loaded pages appear, then try again.');
         if (!cancelled) setChapter(response.chapter);
       } catch (cause) {
         if (!cancelled) setError(cause instanceof Error ? cause.message : String(cause));
@@ -57,70 +59,134 @@ export const OfflineSavePage: React.FC<OfflineSavePageProps> = ({ sourceTabId })
     return () => { cancelled = true; };
   }, [sourceTabId]);
 
-  const saveChapter = async () => {
-    if (!chapter || isSaving) return;
+  const prepareChapters = async () => {
+    if (!chapter || isPreparing || isSaving) return;
+    setIsPreparing(true);
+    setError('');
+    setPrepareMessage('');
+    const collected: OfflineChapterInfo[] = [chapter];
+    const visitedUrls = new Set([new URL(chapter.sourceUrl).href]);
+    let nextUrl = chapter.nextChapterUrl;
+    let warning = '';
+    const aheadCount = Math.max(0, Math.min(20, chapter.offlineDownloadAhead || 0));
+
+    try {
+      const startingOrigin = new URL(chapter.sourceUrl).origin;
+      for (let aheadIndex = 0; aheadIndex < aheadCount && nextUrl; aheadIndex += 1) {
+        const candidateUrl = new URL(nextUrl, chapter.sourceUrl).href;
+        if (visitedUrls.has(candidateUrl)) break;
+        if (new URL(candidateUrl).origin !== startingOrigin) {
+          warning = 'Stopped at a next-chapter link on another website; only same-site chapters are included.';
+          break;
+        }
+        visitedUrls.add(candidateUrl);
+
+        const tab = await chrome.tabs.create({ url: candidateUrl, active: false });
+        if (tab.id === undefined) throw new Error('Chrome could not open a background chapter tab.');
+        try {
+          const deadline = Date.now() + 30000;
+          let nextChapter: OfflineChapterInfo | undefined;
+          let lastError: unknown;
+          while (Date.now() < deadline && !nextChapter) {
+            try {
+              const response = await chrome.tabs.sendMessage(tab.id, { type: 'GET_OFFLINE_CHAPTER_INFO' }) as OfflineChapterInfoResponse;
+              if (response?.success && response.chapter) nextChapter = response.chapter;
+              else if (response?.error) lastError = new Error(response.error);
+            } catch (cause) {
+              lastError = cause;
+            }
+            if (!nextChapter) await new Promise(resolve => window.setTimeout(resolve, 500));
+          }
+          if (!nextChapter) throw new Error(`Could not read ${candidateUrl}. ${lastError instanceof Error ? lastError.message : 'The site may not expose this chapter to MangaVerse.'}`);
+          if (nextChapter.seriesId !== chapter.seriesId || new URL(nextChapter.sourceUrl).origin !== startingOrigin) {
+            throw new Error('The next link did not resolve to this manga on the same website.');
+          }
+          if (!nextChapter.pages.length) throw new Error(`${nextChapter.chapterLabel} had no readable page images.`);
+          if (collected.some(item => item.chapterId === nextChapter?.chapterId)) break;
+          collected.push(nextChapter);
+          nextUrl = nextChapter.nextChapterUrl;
+        } finally {
+          await chrome.tabs.remove(tab.id).catch(() => undefined);
+        }
+      }
+
+      setChaptersToSave(collected);
+      if (!warning && aheadCount > 0 && collected.length === 1) {
+        warning = 'This website did not provide a usable next-chapter link. You can still save the current chapter.';
+      } else if (!warning && collected.length > 1 && collected.length < aheadCount + 1) {
+        warning = `Found ${collected.length - 1} of ${aheadCount} requested next chapters.`;
+      }
+      setPrepareMessage(warning);
+    } catch (cause) {
+      setChaptersToSave(collected);
+      if (collected.length > 1) setPrepareMessage(`Could only prepare ${collected.length - 1} of ${aheadCount} requested next chapters.`);
+      setError(cause instanceof Error ? cause.message : String(cause));
+    } finally {
+      setIsPreparing(false);
+    }
+  };
+
+  const saveChapters = async () => {
+    if (!chaptersToSave.length || isSaving || isPreparing) return;
     setError('');
     setSavedPages(0);
-
-    const origins = Array.from(new Set(chapter.pages.map((page) => `${new URL(page.url).origin}/*`)));
+    const origins = Array.from(new Set(chaptersToSave.flatMap(item => item.pages.map(page => `${new URL(page.url).origin}/*`))));
     try {
-      // This is called directly from the Save button click so Chrome can show
-      // the optional host permission prompt as a user-initiated request.
+      // Request all known image-host permissions from this direct button click.
       const granted = await chrome.permissions.request({ origins });
-      if (!granted) {
-        setError('Image-host access was not granted, so MangaVerse could not download the chapter.');
-        return;
-      }
+      if (!granted) throw new Error('Image-host access was not granted, so MangaVerse could not download the chapters.');
 
       setIsSaving(true);
-      const start = await chrome.runtime.sendMessage({
-        type: 'OFFLINE_SAVE_START',
-        chapter: {
-          chapterId: chapter.chapterId,
-          seriesId: chapter.seriesId,
-          seriesTitle: chapter.seriesTitle,
-          chapterNumber: chapter.chapterNumber,
-          chapterLabel: chapter.chapterLabel,
-          sourceUrl: chapter.sourceUrl,
-        },
-        pageCount: chapter.pages.length,
-      });
-      if (!start?.success) throw new Error(start?.error || 'Could not start saving this chapter.');
-
-      try {
-        for (let pageIndex = 0; pageIndex < chapter.pages.length; pageIndex += 1) {
-          const result = await chrome.runtime.sendMessage({
-            type: 'OFFLINE_SAVE_PAGE',
-            chapterId: chapter.chapterId,
-            pageIndex,
-            pageUrl: chapter.pages[pageIndex].url,
-          });
-          if (!result?.success) {
-            throw new Error(result?.error || `Could not save page ${pageIndex + 1}.`);
-          }
-          setSavedPages(pageIndex + 1);
+      const failures: string[] = [];
+      for (let chapterIndex = 0; chapterIndex < chaptersToSave.length; chapterIndex += 1) {
+        const item = chaptersToSave[chapterIndex];
+        const existing = await db.offlineChapters.get(item.chapterId);
+        if (existing?.status === 'ready') continue;
+        setSaveProgress(`${chapterIndex + 1}/${chaptersToSave.length} · ${item.chapterLabel}`);
+        const start = await chrome.runtime.sendMessage({
+          type: 'OFFLINE_SAVE_START',
+          chapter: {
+            chapterId: item.chapterId,
+            seriesId: item.seriesId,
+            seriesTitle: item.seriesTitle,
+            chapterNumber: item.chapterNumber,
+            chapterLabel: item.chapterLabel,
+            sourceUrl: item.sourceUrl,
+          },
+          pageCount: item.pages.length,
+        });
+        if (!start?.success) {
+          failures.push(`${item.chapterLabel}: ${start?.error || 'could not start saving'}`);
+          continue;
         }
-        const finish = await chrome.runtime.sendMessage({
-          type: 'OFFLINE_SAVE_FINISH',
-          chapterId: chapter.chapterId,
-          success: true,
-        });
-        if (!finish?.success) throw new Error(finish?.error || 'The chapter was only partially saved.');
-        setIsReady(true);
-      } catch (cause) {
-        const message = cause instanceof Error ? cause.message : String(cause);
-        await chrome.runtime.sendMessage({
-          type: 'OFFLINE_SAVE_FINISH',
-          chapterId: chapter.chapterId,
-          success: false,
-          error: message,
-        });
-        throw cause;
+
+        try {
+          for (let pageIndex = 0; pageIndex < item.pages.length; pageIndex += 1) {
+            const result = await chrome.runtime.sendMessage({
+              type: 'OFFLINE_SAVE_PAGE',
+              chapterId: item.chapterId,
+              pageIndex,
+              pageUrl: item.pages[pageIndex].url,
+            });
+            if (!result?.success) throw new Error(result?.error || `Could not save page ${pageIndex + 1}.`);
+            setSavedPages(current => current + 1);
+          }
+          const finish = await chrome.runtime.sendMessage({ type: 'OFFLINE_SAVE_FINISH', chapterId: item.chapterId, success: true });
+          if (!finish?.success) throw new Error(finish?.error || 'The chapter was only partially saved.');
+        } catch (cause) {
+          const message = cause instanceof Error ? cause.message : String(cause);
+          await chrome.runtime.sendMessage({ type: 'OFFLINE_SAVE_FINISH', chapterId: item.chapterId, success: false, error: message });
+          failures.push(`${item.chapterLabel}: ${message}`);
+        }
       }
+      const savedChapter = await db.offlineChapters.get(chapter.chapterId);
+      setIsReady(savedChapter?.status === 'ready');
+      if (failures.length) setError(`Some chapters could not be saved: ${failures.join(' · ')}`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : String(cause));
     } finally {
       setIsSaving(false);
+      setSaveProgress('');
     }
   };
 
@@ -134,7 +200,7 @@ export const OfflineSavePage: React.FC<OfflineSavePageProps> = ({ sourceTabId })
           <div className="w-12 h-12 rounded-2xl bg-emerald-500/10 text-emerald-300 flex items-center justify-center mb-4">
             <Download className="w-6 h-6" />
           </div>
-          <h1 className="text-2xl font-black text-white">Save chapter for offline reading</h1>
+          <h1 className="text-2xl font-black text-white">Save chapters for offline reading</h1>
           <p className="text-sm text-gray-400 mt-2">MangaVerse saves the chapter page images in this browser’s local storage. It does not save the source webpage or send the pages to a server.</p>
 
           {isLoading ? (
@@ -143,28 +209,42 @@ export const OfflineSavePage: React.FC<OfflineSavePageProps> = ({ sourceTabId })
             <div className="mt-6 p-4 bg-darkbg-900 border border-darkbg-700 rounded-2xl">
               <p className="text-white font-bold">{chapter.seriesTitle}</p>
               <p className="text-sm text-gray-400 mt-1">{chapter.chapterLabel}</p>
-              <p className="text-xs text-gray-500 mt-3">{chapter.pages.length} page images found</p>
+              <p className="text-xs text-gray-500 mt-3">{chapter.pages.length} page images found · {chapter.offlineDownloadAhead} next chapter{chapter.offlineDownloadAhead === 1 ? '' : 's'} configured</p>
             </div>
           ) : null}
 
+          {prepareMessage && <p className="mt-4 text-xs text-amber-200">{prepareMessage}</p>}
+          {chaptersToSave.length > 0 && (
+            <div className="mt-4 p-4 bg-darkbg-900 border border-darkbg-700 rounded-2xl">
+              <p className="text-xs font-bold text-gray-300 mb-2">Ready to download · {chaptersToSave.length} chapter{chaptersToSave.length === 1 ? '' : 's'}</p>
+              <ul className="flex flex-col gap-1.5">
+                {chaptersToSave.map((item, index) => (
+                  <li key={`${item.chapterId}-${index}`} className="flex justify-between gap-3 text-xs text-gray-400">
+                    <span className="truncate">{item.chapterLabel}</span>
+                    <span className="shrink-0">{item.pages.length} pages</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           {error && <p role="alert" className="mt-5 p-3 rounded-xl border border-rose-500/30 bg-rose-950/30 text-sm text-rose-200">{error}</p>}
 
           {isSaving && (
             <div className="mt-6" aria-live="polite">
-              <div className="flex justify-between text-xs text-gray-400 mb-2"><span>Saving page images…</span><span>{savedPages} / {chapter?.pages.length}</span></div>
-              <div className="h-2 bg-darkbg-900 rounded-full overflow-hidden"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${chapter ? (savedPages / chapter.pages.length) * 100 : 0}%` }} /></div>
+              <div className="flex justify-between text-xs text-gray-400 mb-2"><span>Saving page images… {saveProgress}</span><span>{savedPages} / {chaptersToSave.reduce((total, item) => total + item.pages.length, 0)}</span></div>
+              <div className="h-2 bg-darkbg-900 rounded-full overflow-hidden"><div className="h-full bg-emerald-400 transition-all" style={{ width: `${Math.min(100, (savedPages / Math.max(1, chaptersToSave.reduce((total, item) => total + item.pages.length, 0))) * 100)}%` }} /></div>
             </div>
           )}
 
           {isReady ? (
             <div className="mt-6 flex flex-wrap items-center gap-3">
-              <span className="inline-flex items-center gap-2 text-sm text-emerald-300"><CheckCircle className="w-4 h-4" /> Chapter saved on this device</span>
+              <span className="inline-flex items-center gap-2 text-sm text-emerald-300"><CheckCircle className="w-4 h-4" /> {chaptersToSave.length > 1 ? `${chaptersToSave.length} chapters saved on this device` : 'Chapter saved on this device'}</span>
               <button onClick={() => chapter && openOfflineReader(chapter.chapterId)} className="bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold px-4 py-2.5 rounded-xl">Read offline</button>
             </div>
           ) : (
-            <button onClick={saveChapter} disabled={!chapter || isLoading || isSaving} className="mt-6 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold px-5 py-3 rounded-xl inline-flex items-center gap-2">
-              {isSaving ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-              {isSaving ? 'Saving chapter…' : 'Download chapter'}
+            <button onClick={chaptersToSave.length ? saveChapters : prepareChapters} disabled={!chapter || isLoading || isSaving || isPreparing} className="mt-6 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold px-5 py-3 rounded-xl inline-flex items-center gap-2">
+              {isSaving || isPreparing ? <LoaderCircle className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+              {isPreparing ? 'Finding next chapters…' : isSaving ? 'Saving chapters…' : chaptersToSave.length ? `Download ${chaptersToSave.length} chapter${chaptersToSave.length === 1 ? '' : 's'}` : chapter?.offlineDownloadAhead ? `Find current + ${chapter.offlineDownloadAhead} ahead` : 'Prepare current chapter'}
             </button>
           )}
 

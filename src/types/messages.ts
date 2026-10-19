@@ -30,6 +30,8 @@ export interface OfflineChapterInfo {
   chapterNumber: number;
   chapterLabel: string;
   sourceUrl: string;
+  nextChapterUrl?: string;
+  offlineDownloadAhead: number;
   pages: OfflinePageSource[];
 }
 
@@ -71,6 +73,7 @@ export interface PageInitResponse {
   progress?: ReadingProgress;
   totalChaptersTracked: number;
   unreadCount: number;
+  offlineDownloadAhead: number;
 }
 
 export interface UpdateProgressMessage {

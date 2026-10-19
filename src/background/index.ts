@@ -110,6 +110,7 @@ async function handleMessage(message: ExtensionMessage, sender?: chrome.runtime.
         progress,
         totalChaptersTracked: totalChapters,
         unreadCount,
+        offlineDownloadAhead: mapping.offlineDownloadAhead ?? 0,
       };
 
       return response;

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../services/db';
-import { Series, Chapter, UserReadingStatus, ComicFormat } from '../../types/library';
+import { Series, SeriesSourceMapping, Chapter, UserReadingStatus, ComicFormat } from '../../types/library';
 import { detectChapterGapsAndDuplicates, GapAnalysisResult } from '../../services/gapDetector';
 import { mergeCrossSourceProgress } from '../../services/progressMerger';
 import { Search, Plus, BookOpen, ExternalLink, CheckCircle, Clock, Trash2, X, AlertTriangle, RefreshCw } from 'lucide-react';
@@ -12,6 +12,7 @@ export const LibraryPage: React.FC = () => {
   const [selectedFormat, setSelectedFormat] = useState<string>('all');
   const [selectedSeries, setSelectedSeries] = useState<Series | null>(null);
   const [seriesChapters, setSeriesChapters] = useState<Chapter[]>([]);
+  const [seriesSources, setSeriesSources] = useState<SeriesSourceMapping[]>([]);
   const [gapAnalysis, setGapAnalysis] = useState<GapAnalysisResult | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isReconciling, setIsReconciling] = useState(false);
@@ -34,15 +35,25 @@ export const LibraryPage: React.FC = () => {
 
   const handleOpenSeriesDetail = async (series: Series) => {
     setSelectedSeries(series);
-    const chs = await db.chapters
+    const [chs, sources] = await Promise.all([db.chapters
       .where('seriesId')
       .equals(series.id)
-      .sortBy('chapterNumber');
+      .sortBy('chapterNumber'), db.sourceMappings.where('seriesId').equals(series.id).toArray()]);
     
     // Analyze gaps and duplicates
     const analysis = detectChapterGapsAndDuplicates(chs);
     setGapAnalysis(analysis);
     setSeriesChapters(chs.reverse());
+    setSeriesSources(sources);
+  };
+
+  const handleUpdateOfflineDownloadAhead = async (mapping: SeriesSourceMapping, rawValue: string) => {
+    const parsed = Number.parseInt(rawValue, 10);
+    const count = Number.isFinite(parsed) ? Math.max(0, Math.min(20, parsed)) : 0;
+    await db.sourceMappings.update(mapping.id, { offlineDownloadAhead: count });
+    setSeriesSources(current => current.map(source => source.id === mapping.id
+      ? { ...source, offlineDownloadAhead: count }
+      : source));
   };
 
   const handleReconcileProgress = async (seriesId: string) => {
@@ -395,6 +406,35 @@ export const LibraryPage: React.FC = () => {
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
               </div>
+            </div>
+
+            {/* Per-source offline download settings */}
+            <div className="px-6 py-4 border-b border-darkbg-700">
+              <h4 className="text-xs font-bold text-gray-300">Download chapters ahead</h4>
+              <p className="text-[11px] text-gray-500 mt-1 mb-3">Choose how many next chapters to save when you start an offline download on each website. Set 0 to save only the current chapter.</p>
+              {seriesSources.length === 0 ? (
+                <p className="text-xs text-gray-500">No reading websites are linked to this series yet.</p>
+              ) : (
+                <div className="flex flex-col gap-2">
+                  {seriesSources.map(source => (
+                    <label key={source.id} className="flex items-center justify-between gap-3 text-xs text-gray-300">
+                      <span className="min-w-0 truncate" title={source.sourceSeriesUrl}>{source.sourceDomain}</span>
+                      <span className="flex items-center gap-2 shrink-0">
+                        <input
+                          aria-label={`Chapters to download ahead from ${source.sourceDomain}`}
+                          type="number"
+                          min="0"
+                          max="20"
+                          defaultValue={source.offlineDownloadAhead ?? 0}
+                          onBlur={event => void handleUpdateOfflineDownloadAhead(source, event.target.value)}
+                          className="bg-darkbg-900 border border-darkbg-700 text-xs text-white rounded-lg px-2 py-1 w-16 text-center focus:outline-none focus:border-purple-500"
+                        />
+                        <span className="text-[11px] text-gray-500">chapters</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Chapters List */}

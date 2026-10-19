@@ -13,9 +13,13 @@ export abstract class BaseSiteAdapter implements SiteAdapter {
 
   getNextChapterUrl(doc: Document): string | null {
     const nextEl = doc.querySelector<HTMLAnchorElement>(
-      'a[rel="next"], a.next, a.next_page, a.btn-next, a[title*="Next Chapter" i], a:has(> *:contains("Next"))'
+      'a[rel="next"], a.next, a.next_page, a.btn-next, a[title*="Next Chapter" i], a[aria-label*="next chapter" i]'
     );
-    return nextEl?.href || null;
+    if (nextEl?.href) return nextEl.href;
+    const textLink = Array.from(doc.querySelectorAll<HTMLAnchorElement>('a[href]')).find((anchor) =>
+      /\bnext\s*(chapter|ch\.?|episode|ep\.?)?\b/i.test(anchor.textContent || '')
+    );
+    return textLink?.href || null;
   }
 
   getPrevChapterUrl(doc: Document): string | null {

@@ -77,7 +77,8 @@ async function initContentScript(retryCount = 0) {
       seriesTitle: series.title,
       chapterNumber: currentChapter.chapterNumber,
       chapterLabel: currentChapter.chapterLabel,
-      sourceUrl: currentChapter.sourceUrl,
+      sourceUrl: url,
+      offlineDownloadAhead: response.offlineDownloadAhead ?? 0,
     };
 
     // Create Reader HUD
@@ -191,7 +192,14 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     })
     .filter((page): page is { url: string; alt: string | undefined } => page !== null);
 
-  sendResponse({ success: true, chapter: { ...activeOfflineChapter, pages } });
+  sendResponse({
+    success: true,
+    chapter: {
+      ...activeOfflineChapter,
+      nextChapterUrl: activeAdapter.getNextChapterUrl?.(document) || undefined,
+      pages,
+    },
+  });
 });
 
 // Run when DOM is ready
