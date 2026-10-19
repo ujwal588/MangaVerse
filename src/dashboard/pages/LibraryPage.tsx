@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { db } from '../../services/db';
 import { Series, Chapter, UserReadingStatus, ComicFormat } from '../../types/library';
-import { Search, Plus, BookOpen, ExternalLink, Sliders, CheckCircle, Clock, Trash2, X } from 'lucide-react';
+import { detectChapterGapsAndDuplicates, GapAnalysisResult } from '../../services/gapDetector';
+import { mergeCrossSourceProgress } from '../../services/progressMerger';
+import { Search, Plus, BookOpen, ExternalLink, CheckCircle, Clock, Trash2, X, AlertTriangle, RefreshCw } from 'lucide-react';
 
 export const LibraryPage: React.FC = () => {
   const [seriesList, setSeriesList] = useState<Series[]>([]);
@@ -10,7 +12,9 @@ export const LibraryPage: React.FC = () => {
   const [selectedFormat, setSelectedFormat] = useState<string>('all');
   const [selectedSeries, setSelectedSeries] = useState<Series | null>(null);
   const [seriesChapters, setSeriesChapters] = useState<Chapter[]>([]);
+  const [gapAnalysis, setGapAnalysis] = useState<GapAnalysisResult | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isReconciling, setIsReconciling] = useState(false);
 
   // New series form state
   const [newTitle, setNewTitle] = useState('');
@@ -34,7 +38,29 @@ export const LibraryPage: React.FC = () => {
       .where('seriesId')
       .equals(series.id)
       .sortBy('chapterNumber');
+    
+    // Analyze gaps and duplicates
+    const analysis = detectChapterGapsAndDuplicates(chs);
+    setGapAnalysis(analysis);
     setSeriesChapters(chs.reverse());
+  };
+
+  const handleReconcileProgress = async (seriesId: string) => {
+    setIsReconciling(true);
+    const summary = await mergeCrossSourceProgress(seriesId);
+    if (summary.hasChanged) {
+      alert(`Progress reconciled! Highest read chapter updated to ${summary.newHighestRead}.`);
+    } else {
+      alert('Progress is already fully synchronized across all sources.');
+    }
+    await loadSeries();
+    if (selectedSeries) {
+      const refreshed = await db.series.get(seriesId);
+      if (refreshed) setSelectedSeries(refreshed);
+      const chs = await db.chapters.where('seriesId').equals(seriesId).sortBy('chapterNumber');
+      setSeriesChapters(chs.reverse());
+    }
+    setIsReconciling(false);
   };
 
   const handleUpdateStatus = async (seriesId: string, status: UserReadingStatus) => {
@@ -159,7 +185,7 @@ export const LibraryPage: React.FC = () => {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-black text-white tracking-tight">My Manga Library</h1>
-          <p className="text-sm text-gray-400">Track and organize your reading across all websites</p>
+          <p className="text-sm text-gray-400">Track, cross-merge, and detect missing chapters across all reading websites</p>
         </div>
         <button
           onClick={() => setIsAddModalOpen(true)}
@@ -306,6 +332,17 @@ export const LibraryPage: React.FC = () => {
               </button>
             </div>
 
+            {/* Gap Warning Banner if detected */}
+            {gapAnalysis?.hasGaps && (
+              <div className="bg-amber-950/40 border-b border-amber-500/30 px-6 py-3 flex items-start gap-3">
+                <AlertTriangle className="w-4 h-4 text-amber-400 flex-shrink-0 mt-0.5" />
+                <div className="text-xs text-amber-200">
+                  <span className="font-bold">Missing Chapters Detected: </span>
+                  {gapAnalysis.gaps.map(g => g.description).join('; ')}
+                </div>
+              </div>
+            )}
+
             {/* Modal Settings Bar */}
             <div className="p-6 bg-darkbg-900/60 border-b border-darkbg-700 flex flex-wrap items-center justify-between gap-4">
               <div className="flex items-center gap-2">
@@ -336,19 +373,38 @@ export const LibraryPage: React.FC = () => {
                 <span className="text-[11px] text-gray-500">chs</span>
               </div>
 
-              <button
-                onClick={() => handleDeleteSeries(selectedSeries.id)}
-                className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1.5 px-3 py-1.5 hover:bg-rose-950/30 rounded-lg transition"
-              >
-                <Trash2 className="w-3.5 h-3.5" /> Remove Series
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => handleReconcileProgress(selectedSeries.id)}
+                  disabled={isReconciling}
+                  title="Cross-reconcile reading progress with other sources"
+                  className="text-xs text-purple-300 hover:text-white flex items-center gap-1.5 px-3 py-1.5 bg-purple-600/20 hover:bg-purple-600/40 border border-purple-500/30 rounded-lg transition"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${isReconciling ? 'animate-spin' : ''}`} /> Sync Cross-Source
+                </button>
+
+                <button
+                  onClick={() => handleDeleteSeries(selectedSeries.id)}
+                  className="text-xs text-rose-400 hover:text-rose-300 flex items-center gap-1.5 px-3 py-1.5 hover:bg-rose-950/30 rounded-lg transition"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
             {/* Chapters List */}
             <div className="p-6 overflow-y-auto flex-1 flex flex-col gap-2">
-              <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">
-                Tracked Chapters ({seriesChapters.length})
-              </h4>
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider">
+                  Tracked Chapters ({seriesChapters.length})
+                </h4>
+                {gapAnalysis?.duplicates && gapAnalysis.duplicates.length > 0 && (
+                  <span className="text-[10px] text-purple-400 bg-purple-950/40 border border-purple-500/20 px-2 py-0.5 rounded-full">
+                    {gapAnalysis.duplicates.length} duplicate release(s) aligned
+                  </span>
+                )}
+              </div>
+
               {seriesChapters.length === 0 ? (
                 <p className="text-xs text-gray-500 py-6 text-center">No chapters tracked yet for this series.</p>
               ) : (

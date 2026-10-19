@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { LibraryPage } from './pages/LibraryPage';
 import { UpdatesPage } from './pages/UpdatesPage';
+import { QueueCalendarPage } from './pages/QueueCalendarPage';
 import { TranslationPage } from './pages/TranslationPage';
 import { CreativeStudioPage } from './pages/CreativeStudioPage';
 import { AnalyticsPage } from './pages/AnalyticsPage';
 import { SettingsPage } from './pages/SettingsPage';
-import { BookOpen, Bell, Languages, Palette, BarChart3, Settings } from 'lucide-react';
+import { BookOpen, Bell, Calendar, Languages, Palette, BarChart3, Settings } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<'library' | 'updates' | 'translation' | 'studio' | 'analytics' | 'settings'>('library');
+  const [activeTab, setActiveTab] = useState<'library' | 'updates' | 'queue' | 'translation' | 'studio' | 'analytics' | 'settings'>('library');
 
   return (
     <div className="min-h-screen flex flex-col bg-darkbg-900 text-gray-100">
@@ -29,6 +30,7 @@ export const Dashboard: React.FC = () => {
             {[
               { id: 'library', label: 'Library', icon: BookOpen },
               { id: 'updates', label: 'Updates', icon: Bell },
+              { id: 'queue', label: 'Queue & Radar', icon: Calendar },
               { id: 'translation', label: 'Translation (BYOK)', icon: Languages },
               { id: 'studio', label: 'Creative Studio', icon: Palette },
               { id: 'analytics', label: 'Insights', icon: BarChart3 },
@@ -59,6 +61,7 @@ export const Dashboard: React.FC = () => {
       <main className="flex-1">
         {activeTab === 'library' && <LibraryPage />}
         {activeTab === 'updates' && <UpdatesPage />}
+        {activeTab === 'queue' && <QueueCalendarPage />}
         {activeTab === 'translation' && <TranslationPage />}
         {activeTab === 'studio' && <CreativeStudioPage />}
         {activeTab === 'analytics' && <AnalyticsPage />}
