@@ -37,7 +37,9 @@ async function handleMessage(message: ExtensionMessage): Promise<any> {
       const { url, detectedSeries, detectedChapter } = message;
       const parsedUrl = new URL(url);
       const sourceDomain = parsedUrl.hostname;
-      const sourceName = sourceDomain.includes('mangadex') ? 'mangadex' : 'generic';
+      let sourceName = 'generic';
+      if (sourceDomain.includes('mangadex')) sourceName = 'mangadex';
+      else if (sourceDomain.includes('webtoons')) sourceName = 'webtoons';
 
       // 1. Resolve or create canonical series
       const { series, mapping } = await resolveOrCreateSeries(
@@ -66,8 +68,33 @@ async function handleMessage(message: ExtensionMessage): Promise<any> {
         await db.chapters.add(chapter);
       }
 
-      // 3. Get existing reading progress
-      const progress = await db.progress.get(series.id);
+      // 3. Immediately persist or update reading progress so it shows in library & popup instantly
+      let progress = await db.progress.get(series.id);
+      const now = Date.now();
+
+      if (!progress) {
+        progress = {
+          seriesId: series.id,
+          lastReadChapterId: chapter.id,
+          lastReadChapterNumber: chapter.chapterNumber,
+          scrollPositionPercent: 0,
+          scrollPixelOffset: 0,
+          activeReadingMode: detectedSeries.defaultReadingMode || 'vertical',
+          lastReadTimestamp: now,
+          completedChapterIds: [],
+        };
+      } else {
+        progress.lastReadChapterId = chapter.id;
+        progress.lastReadChapterNumber = chapter.chapterNumber;
+        progress.lastReadTimestamp = now;
+      }
+      await db.progress.put(progress);
+
+      // Also ensure series has updated timestamp and current chapter
+      await db.series.update(series.id, {
+        lastReadChapterNumber: chapter.chapterNumber,
+        updatedAt: now,
+      });
 
       const totalChapters = await db.chapters.where('seriesId').equals(series.id).count();
       const unreadCount = await db.chapters

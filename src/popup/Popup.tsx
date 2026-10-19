@@ -12,22 +12,37 @@ export const Popup: React.FC = () => {
   useEffect(() => {
     loadRecent();
     checkActiveTab();
+    const interval = setInterval(loadRecent, 2000);
+    return () => clearInterval(interval);
   }, []);
 
   const loadRecent = async () => {
-    const allProgress = await db.progress.orderBy('lastReadTimestamp').reverse().limit(3).toArray();
-    const list: Array<{ series: Series; progress?: ReadingProgress }> = [];
+    try {
+      const allProgress = await db.progress.orderBy('lastReadTimestamp').reverse().limit(5).toArray();
+      const list: Array<{ series: Series; progress?: ReadingProgress }> = [];
 
-    for (const p of allProgress) {
-      const s = await db.series.get(p.seriesId);
-      if (s) {
-        list.push({ series: s, progress: p });
+      for (const p of allProgress) {
+        const s = await db.series.get(p.seriesId);
+        if (s) {
+          list.push({ series: s, progress: p });
+        }
       }
-    }
-    setRecentSeries(list);
 
-    const unread = await db.chapters.filter(c => !c.isRead).count();
-    setUnreadTotal(unread);
+      // Fallback: If progress is empty, load directly from db.series
+      if (list.length === 0) {
+        const allSeries = await db.series.orderBy('updatedAt').reverse().limit(5).toArray();
+        for (const s of allSeries) {
+          list.push({ series: s });
+        }
+      }
+
+      setRecentSeries(list);
+
+      const unread = await db.chapters.filter((c) => !c.isRead).count();
+      setUnreadTotal(unread);
+    } catch (e) {
+      console.warn('[MangaVerse Popup] Error loading stats:', e);
+    }
   };
 
   const checkActiveTab = async () => {

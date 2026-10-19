@@ -5,11 +5,20 @@ import { InPageTranslationController } from './translation/translationController
 import { InPageOverlayRenderer } from './translation/overlayRenderer';
 import { PageInitMessage, PageInitResponse, UpdateProgressMessage } from '../types/messages';
 
-async function initContentScript() {
+let activeHUD: ReaderHUD | null = null;
+let activeTracker: ScrollTracker | null = null;
+let currentTrackingUrl: string = '';
+
+async function initContentScript(retryCount = 0) {
   const url = window.location.href;
   const adapter = AdapterRegistry.getMatchingAdapter(url, document);
 
   if (!adapter) {
+    return;
+  }
+
+  // Avoid duplicate initialization on exact same URL
+  if (currentTrackingUrl === url && activeHUD) {
     return;
   }
 
@@ -22,11 +31,27 @@ async function initContentScript() {
     ]);
 
     if (!seriesMeta || !chapterMeta) {
-      console.warn('[MangaVerse] Could not detect series or chapter metadata');
+      if (retryCount < 3) {
+        console.log(`[MangaVerse] Retrying metadata detection (attempt ${retryCount + 1})...`);
+        setTimeout(() => initContentScript(retryCount + 1), 600);
+      } else {
+        console.warn('[MangaVerse] Could not detect series or chapter metadata after retries');
+      }
       return;
     }
 
+    currentTrackingUrl = url;
     console.log(`[MangaVerse] Detected: ${seriesMeta.title} - ${chapterMeta.chapterLabel}`);
+
+    // Clean up previous HUD/tracker if navigating across chapters in same tab (SPA)
+    if (activeHUD) {
+      activeHUD.unmount();
+      activeHUD = null;
+    }
+    if (activeTracker) {
+      activeTracker.stop();
+      activeTracker = null;
+    }
 
     // Send page init to background worker
     const initMsg: PageInitMessage = {
@@ -47,7 +72,7 @@ async function initContentScript() {
 
     // Initialize Translation Controller
     const translationController = new InPageTranslationController(
-      { provider: 'mock', targetLang: 'en' },
+      { provider: 'gemini', targetLang: 'en' },
       series.id
     );
 
@@ -68,7 +93,7 @@ async function initContentScript() {
     const hud = new ReaderHUD({
       seriesTitle: series.title,
       chapterLabel: currentChapter.chapterLabel,
-      initialPercent: progress?.scrollPositionPercent,
+      initialPercent: progress?.scrollPositionPercent || 0,
       isInitiallyCompleted: currentChapter.isRead,
       onOpenDashboard: () => {
         chrome.runtime.sendMessage({ type: 'OPEN_DASHBOARD' });
@@ -92,6 +117,7 @@ async function initContentScript() {
     });
 
     hud.mount();
+    activeHUD = hud;
 
     // Setup scroll tracker
     const tracker = new ScrollTracker({
@@ -113,6 +139,19 @@ async function initContentScript() {
     });
 
     tracker.start();
+    activeTracker = tracker;
+
+    // Send immediate initial progress (0%) so it registers in db without waiting for first scroll
+    const initialProgressMsg: UpdateProgressMessage = {
+      type: 'UPDATE_PROGRESS',
+      seriesId: series.id,
+      chapterId: currentChapter.id,
+      chapterNumber: currentChapter.chapterNumber,
+      scrollPercent: progress?.scrollPositionPercent || 0,
+      scrollPixelOffset: window.scrollY || 0,
+      isCompleted: currentChapter.isRead,
+    };
+    chrome.runtime.sendMessage(initialProgressMsg);
 
     // Restore previous scroll position if available and chapter was partially read
     if (progress && !currentChapter.isRead && progress.scrollPixelOffset > 100) {
@@ -127,7 +166,22 @@ async function initContentScript() {
 
 // Run when DOM is ready
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', initContentScript);
+  document.addEventListener('DOMContentLoaded', () => initContentScript());
 } else {
   initContentScript();
 }
+
+// Observe SPA URL navigation (e.g. clicking next chapter without page reload)
+let lastObservedUrl = window.location.href;
+setInterval(() => {
+  if (window.location.href !== lastObservedUrl) {
+    lastObservedUrl = window.location.href;
+    console.log('[MangaVerse] Detected URL change to:', lastObservedUrl);
+    initContentScript();
+  }
+}, 800);
+window.addEventListener('popstate', () => {
+  lastObservedUrl = window.location.href;
+  initContentScript();
+});
+

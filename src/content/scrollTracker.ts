@@ -51,8 +51,13 @@ export class ScrollTracker {
     this.throttleTimeout = window.setTimeout(() => {
       this.throttleTimeout = null;
 
-      const scrollTop = window.scrollY || document.documentElement.scrollTop;
-      const scrollHeight = document.documentElement.scrollHeight - window.innerHeight;
+      const scrollTop = window.scrollY || document.documentElement.scrollTop || document.body.scrollTop || 0;
+      const totalHeight = Math.max(
+        document.documentElement.scrollHeight,
+        document.body.scrollHeight,
+        1
+      );
+      const scrollHeight = totalHeight - window.innerHeight;
       
       const percent = scrollHeight > 0 ? Math.min(1.0, Math.max(0.0, scrollTop / scrollHeight)) : 1.0;
 
@@ -61,6 +66,7 @@ export class ScrollTracker {
       }
 
       this.options.onProgress(percent, scrollTop, this.isCompleted);
-    }, 1000); // 1-second throttle
+    }, 300); // 300ms responsive throttle
   }
 }
+

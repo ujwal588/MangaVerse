@@ -18,15 +18,20 @@ export class WebtoonsAdapter extends BaseSiteAdapter {
   }
 
   async detectSeries(doc: Document, url: string): Promise<DetectedSeriesMetadata | null> {
-    // 1. Try DOM elements: header title, episode info
-    const subjEl = doc.querySelector('.subj_info a.subj, .subj_info h1, .subj_episode, .subj');
-    let title = subjEl?.textContent?.trim();
+    let title = '';
 
-    // 2. Try Open Graph meta tag
+    // 1. Try Open Graph meta tag (always present in Webtoons HTML)
+    const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content');
+    if (ogTitle) {
+      // e.g. "Necromancer, the Ultimate Scourge! - Episode 5" or "Tower of God | WEBTOON"
+      title = ogTitle.split(/\s*-\s*Episode|\s*\|\s*WEBTOON|\|/i)[0].trim();
+    }
+
+    // 2. Try DOM elements: header title, series link
     if (!title) {
-      const ogTitle = doc.querySelector('meta[property="og:title"]')?.getAttribute('content');
-      if (ogTitle) {
-        title = ogTitle.split(/\||-|Episode/i)[0].trim();
+      const subjEl = doc.querySelector('.subj_info a.subj, .subj_info h1, h1.subj, a.subj');
+      if (subjEl?.textContent?.trim()) {
+        title = subjEl.textContent.trim();
       }
     }
 
@@ -45,7 +50,10 @@ export class WebtoonsAdapter extends BaseSiteAdapter {
       title = doc.title.split(/\||-/)[0].trim() || 'Webtoon Series';
     }
 
-    // Try finding series home link
+    // Clean up title
+    title = title.replace(/^Episode\s+\d+\s*\|\s*/i, '').trim();
+
+    // Find series home link
     const seriesLink = doc.querySelector<HTMLAnchorElement>('.subj_info a, a.back_btn');
     const sourceSeriesUrl = seriesLink?.href || url.split('/viewer')[0];
 
@@ -58,13 +66,18 @@ export class WebtoonsAdapter extends BaseSiteAdapter {
   }
 
   async detectChapter(doc: Document, url: string): Promise<DetectedChapterMetadata | null> {
-    // 1. Try URL query parameter: episode_no=5
     let chapterNum: number | undefined;
-    const urlObj = new URL(url, 'https://www.webtoons.com');
-    const epParam = urlObj.searchParams.get('episode_no');
-    if (epParam) {
-      const parsed = parseFloat(epParam);
-      if (!isNaN(parsed)) chapterNum = parsed;
+
+    // 1. Try URL query parameter: episode_no=5
+    try {
+      const urlObj = new URL(url, 'https://www.webtoons.com');
+      const epParam = urlObj.searchParams.get('episode_no');
+      if (epParam) {
+        const parsed = parseFloat(epParam);
+        if (!isNaN(parsed)) chapterNum = parsed;
+      }
+    } catch (e) {
+      // Ignore URL parse error
     }
 
     // 2. Try URL path: episode-5
@@ -76,13 +89,15 @@ export class WebtoonsAdapter extends BaseSiteAdapter {
     }
 
     // 3. Try DOM: .subj_episode
-    const subjEpisode = doc.querySelector('.subj_episode, .date, span.tx')?.textContent?.trim();
+    const subjEpisode = doc.querySelector('.subj_episode')?.textContent?.trim();
     const label = subjEpisode || (chapterNum !== undefined ? `Episode ${chapterNum}` : 'Episode 1');
     const normalized = normalizeChapter(label);
 
+    const finalNumber = chapterNum !== undefined ? chapterNum : normalized.chapterNumber;
+
     return {
-      chapterNumber: chapterNum !== undefined ? chapterNum : normalized.chapterNumber,
-      chapterLabel: label,
+      chapterNumber: finalNumber,
+      chapterLabel: `Episode ${finalNumber}`,
       sourceChapterUrl: url,
     };
   }
