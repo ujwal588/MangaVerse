@@ -1,0 +1,179 @@
+import { setupAlarms } from './alarms';
+import { performUpdateCheck } from './updateChecker';
+import { resolveOrCreateSeries } from '../services/seriesResolver';
+import { db } from '../services/db';
+import { Chapter, ReadingProgress } from '../types/library';
+import {
+  ExtensionMessage,
+  PageInitResponse,
+  ProxyFetchImageResponse,
+} from '../types/messages';
+
+// Initialize alarms on extension install / update
+chrome.runtime.onInstalled.addListener(() => {
+  console.log('[MangaVerse] Extension installed/updated.');
+  setupAlarms();
+});
+
+chrome.runtime.onStartup.addListener(() => {
+  console.log('[MangaVerse] Browser started.');
+  setupAlarms();
+});
+
+// Central message listener
+chrome.runtime.onMessage.addListener((message: ExtensionMessage, _sender, sendResponse) => {
+  handleMessage(message)
+    .then(sendResponse)
+    .catch((err) => {
+      console.error('[MangaVerse] Error handling message:', err);
+      sendResponse({ error: String(err) });
+    });
+  return true; // Keep channel open for async response
+});
+
+async function handleMessage(message: ExtensionMessage): Promise<any> {
+  switch (message.type) {
+    case 'PAGE_INIT': {
+      const { url, detectedSeries, detectedChapter } = message;
+      const parsedUrl = new URL(url);
+      const sourceDomain = parsedUrl.hostname;
+      const sourceName = sourceDomain.includes('mangadex') ? 'mangadex' : 'generic';
+
+      // 1. Resolve or create canonical series
+      const { series, mapping } = await resolveOrCreateSeries(
+        detectedSeries,
+        sourceName,
+        sourceDomain
+      );
+
+      // 2. Find or register current chapter
+      let chapter = await db.chapters
+        .where('[seriesId+chapterNumber]')
+        .equals([series.id, detectedChapter.chapterNumber])
+        .first();
+
+      if (!chapter) {
+        chapter = {
+          id: crypto.randomUUID(),
+          seriesId: series.id,
+          sourceMappingId: mapping.id,
+          chapterNumber: detectedChapter.chapterNumber,
+          chapterLabel: detectedChapter.chapterLabel,
+          sourceUrl: detectedChapter.sourceChapterUrl,
+          detectedAt: Date.now(),
+          isRead: false,
+        };
+        await db.chapters.add(chapter);
+      }
+
+      // 3. Get existing reading progress
+      const progress = await db.progress.get(series.id);
+
+      const totalChapters = await db.chapters.where('seriesId').equals(series.id).count();
+      const unreadCount = await db.chapters
+        .where('seriesId')
+        .equals(series.id)
+        .filter((c) => !c.isRead)
+        .count();
+
+      const response: PageInitResponse = {
+        type: 'PAGE_INIT_RESPONSE',
+        series,
+        currentChapter: chapter,
+        progress,
+        totalChaptersTracked: totalChapters,
+        unreadCount,
+      };
+
+      return response;
+    }
+
+    case 'UPDATE_PROGRESS': {
+      const { seriesId, chapterId, chapterNumber, scrollPercent, scrollPixelOffset, isCompleted } = message;
+
+      const now = Date.now();
+
+      // Update chapter completion status
+      if (isCompleted) {
+        await db.chapters.update(chapterId, {
+          isRead: true,
+          readAt: now,
+        });
+
+        // Recalculate unread count
+        const unreadCount = await db.chapters
+          .where('seriesId')
+          .equals(seriesId)
+          .filter((c) => !c.isRead)
+          .count();
+
+        await db.series.update(seriesId, {
+          lastReadChapterNumber: chapterNumber,
+          unreadCount,
+          updatedAt: now,
+        });
+      }
+
+      // Update reading progress record
+      const existingProgress = await db.progress.get(seriesId);
+      const completedSet = new Set(existingProgress?.completedChapterIds || []);
+      if (isCompleted) completedSet.add(chapterId);
+
+      const updatedProgress: ReadingProgress = {
+        seriesId,
+        lastReadChapterId: chapterId,
+        lastReadChapterNumber: chapterNumber,
+        scrollPositionPercent: scrollPercent,
+        scrollPixelOffset,
+        activeReadingMode: existingProgress?.activeReadingMode || 'vertical',
+        lastReadTimestamp: now,
+        completedChapterIds: Array.from(completedSet),
+      };
+
+      await db.progress.put(updatedProgress);
+      return { success: true };
+    }
+
+    case 'TRIGGER_CHECK_UPDATES': {
+      const result = await performUpdateCheck();
+      return {
+        type: 'UPDATE_CHECK_COMPLETE',
+        newChaptersFound: result.newChaptersCount,
+        notificationsGenerated: [],
+      };
+    }
+
+    case 'PROXY_FETCH_IMAGE': {
+      try {
+        const resp = await fetch(message.imageUrl);
+        const blob = await resp.blob();
+        return new Promise<ProxyFetchImageResponse>((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            resolve({
+              type: 'PROXY_FETCH_IMAGE_RESPONSE',
+              success: true,
+              dataUrl: reader.result as string,
+            });
+          };
+          reader.readAsDataURL(blob);
+        });
+      } catch (e) {
+        return {
+          type: 'PROXY_FETCH_IMAGE_RESPONSE',
+          success: false,
+          error: String(e),
+        };
+      }
+    }
+
+    case 'OPEN_DASHBOARD': {
+      const dashboardUrl = chrome.runtime.getURL('src/dashboard/index.html');
+      chrome.tabs.create({ url: dashboardUrl });
+      return { success: true };
+    }
+
+    default:
+      return { error: 'Unknown message type' };
+  }
+}
