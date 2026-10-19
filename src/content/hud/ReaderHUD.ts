@@ -92,7 +92,7 @@ export class ReaderHUD {
       </div>
       <div class="mangaverse-pill-badge">${this.progressPercent}%</div>
       <div class="mangaverse-completed-tag" style="display: ${this.isCompleted ? 'inline-flex' : 'none'};">
-        ✓
+        &#10003;
       </div>
     `;
 
@@ -117,7 +117,7 @@ export class ReaderHUD {
           ${this.isCompleted ? 'Mark Unread' : 'Mark as Read'}
         </button>
         <button class="mangaverse-btn" id="btn-translate">
-          ${this.isTranslating ? '🌐 Translating' : '🌐 AI Translate'}
+          ${this.isTranslating ? '[AI] Translating' : '[AI] Translate'}
         </button>
         <button class="mangaverse-btn" id="btn-reading-mode">
           ${this.currentMode.toUpperCase()}
@@ -145,7 +145,7 @@ export class ReaderHUD {
       this.onToggleTranslation?.(this.isTranslating);
       const btn = expandedSection.querySelector<HTMLElement>('#btn-translate');
       if (btn) {
-        btn.textContent = this.isTranslating ? '🌐 Translating (ON)' : '🌐 AI Translate';
+        btn.textContent = this.isTranslating ? '[AI] Translating (ON)' : '[AI] Translate';
         btn.style.background = this.isTranslating ? 'rgba(168, 85, 247, 0.4)' : '';
         btn.style.borderColor = this.isTranslating ? '#a855f7' : '';
       }

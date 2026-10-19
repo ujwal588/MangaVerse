@@ -34,7 +34,7 @@ export class GenericLongstripAdapter extends BaseSiteAdapter {
     }
 
     if (!title) {
-      title = doc.title.split(/chapter|ch\.?|-|–|\|/i)[0].trim() || 'Manhwa Title';
+      title = doc.title.split(/chapter|ch\.?|-|\u2013|\|/i)[0].trim() || 'Manhwa Title';
     }
 
     return {

@@ -36,7 +36,7 @@ export class GenericHorizontalAdapter extends BaseSiteAdapter {
 
     if (!title) {
       // Split page title
-      title = doc.title.split(/chapter|ch\.?|-|–|\|/i)[0].trim() || 'Manga Title';
+      title = doc.title.split(/chapter|ch\.?|-|\u2013|\|/i)[0].trim() || 'Manga Title';
     }
 
     return {

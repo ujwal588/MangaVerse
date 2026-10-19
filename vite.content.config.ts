@@ -2,6 +2,9 @@ import { defineConfig } from 'vite';
 import { resolve } from 'path';
 
 export default defineConfig({
+  esbuild: {
+    charset: 'ascii',
+  },
   build: {
     outDir: 'dist',
     emptyOutDir: false,
@@ -13,3 +16,4 @@ export default defineConfig({
     },
   },
 });
+
