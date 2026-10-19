@@ -1,6 +1,8 @@
 import { AdapterRegistry } from './adapters/registry';
 import { ScrollTracker } from './scrollTracker';
 import { ReaderHUD } from './hud/ReaderHUD';
+import { InPageTranslationController } from './translation/translationController';
+import { InPageOverlayRenderer } from './translation/overlayRenderer';
 import { PageInitMessage, PageInitResponse, UpdateProgressMessage } from '../types/messages';
 
 async function initContentScript() {
@@ -8,7 +10,6 @@ async function initContentScript() {
   const adapter = AdapterRegistry.getMatchingAdapter(url, document);
 
   if (!adapter) {
-    // Not a supported reader page
     return;
   }
 
@@ -44,6 +45,25 @@ async function initContentScript() {
 
     const { series, currentChapter, progress } = response;
 
+    // Initialize Translation Controller
+    const translationController = new InPageTranslationController(
+      { provider: 'mock', targetLang: 'en' },
+      series.id
+    );
+
+    // Global Shift key listener to toggle original raw comic text
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Shift') {
+        InPageOverlayRenderer.toggleGlobalOriginal(true);
+      }
+    });
+
+    window.addEventListener('keyup', (e) => {
+      if (e.key === 'Shift') {
+        InPageOverlayRenderer.toggleGlobalOriginal(false);
+      }
+    });
+
     // Create Reader HUD
     const hud = new ReaderHUD({
       seriesTitle: series.title,
@@ -52,6 +72,10 @@ async function initContentScript() {
       isInitiallyCompleted: currentChapter.isRead,
       onOpenDashboard: () => {
         chrome.runtime.sendMessage({ type: 'OPEN_DASHBOARD' });
+      },
+      onToggleTranslation: (isTranslating) => {
+        const pageElements = adapter.extractPageElements(document);
+        translationController.setEnabled(isTranslating, pageElements);
       },
       onToggleCompleted: (isCompleted) => {
         const updateMsg: UpdateProgressMessage = {

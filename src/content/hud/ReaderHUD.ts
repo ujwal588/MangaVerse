@@ -5,6 +5,7 @@ export interface ReaderHUDProps {
   isInitiallyCompleted?: boolean;
   onReadingModeChange?: (mode: 'ltr' | 'rtl' | 'vertical') => void;
   onToggleCompleted?: (isCompleted: boolean) => void;
+  onToggleTranslation?: (isTranslating: boolean) => void;
   onOpenDashboard?: () => void;
 }
 
@@ -13,6 +14,7 @@ export class ReaderHUD {
   private shadowRoot: ShadowRoot;
   private isExpanded: boolean = false;
   private isCompleted: boolean = false;
+  private isTranslating: boolean = false;
   private progressPercent: number = 0;
   private currentMode: 'ltr' | 'rtl' | 'vertical' = 'vertical';
 
@@ -20,6 +22,7 @@ export class ReaderHUD {
   private chapterLabel: string;
   private onReadingModeChange?: (mode: 'ltr' | 'rtl' | 'vertical') => void;
   private onToggleCompleted?: (isCompleted: boolean) => void;
+  private onToggleTranslation?: (isTranslating: boolean) => void;
   private onOpenDashboard?: () => void;
 
   constructor(props: ReaderHUDProps) {
@@ -29,6 +32,7 @@ export class ReaderHUD {
     this.isCompleted = props.isInitiallyCompleted ?? false;
     this.onReadingModeChange = props.onReadingModeChange;
     this.onToggleCompleted = props.onToggleCompleted;
+    this.onToggleTranslation = props.onToggleTranslation;
     this.onOpenDashboard = props.onOpenDashboard;
 
     this.hostElement = document.createElement('div');
@@ -71,7 +75,6 @@ export class ReaderHUD {
   }
 
   private render(): void {
-    // Import CSS
     const styleLink = document.createElement('link');
     styleLink.rel = 'stylesheet';
     styleLink.href = chrome.runtime.getURL('src/content/hud/ReaderHUD.css');
@@ -113,8 +116,11 @@ export class ReaderHUD {
         <button class="mangaverse-btn" id="btn-toggle-read">
           ${this.isCompleted ? 'Mark Unread' : 'Mark as Read'}
         </button>
+        <button class="mangaverse-btn" id="btn-translate">
+          ${this.isTranslating ? '🌐 Translating' : '🌐 AI Translate'}
+        </button>
         <button class="mangaverse-btn" id="btn-reading-mode">
-          Mode: ${this.currentMode.toUpperCase()}
+          ${this.currentMode.toUpperCase()}
         </button>
         <button class="mangaverse-btn mangaverse-btn-primary" id="btn-dashboard">
           Library
@@ -133,13 +139,25 @@ export class ReaderHUD {
       if (tag) tag.style.display = this.isCompleted ? 'inline-flex' : 'none';
     });
 
+    expandedSection.querySelector('#btn-translate')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.isTranslating = !this.isTranslating;
+      this.onToggleTranslation?.(this.isTranslating);
+      const btn = expandedSection.querySelector<HTMLElement>('#btn-translate');
+      if (btn) {
+        btn.textContent = this.isTranslating ? '🌐 Translating (ON)' : '🌐 AI Translate';
+        btn.style.background = this.isTranslating ? 'rgba(168, 85, 247, 0.4)' : '';
+        btn.style.borderColor = this.isTranslating ? '#a855f7' : '';
+      }
+    });
+
     expandedSection.querySelector('#btn-reading-mode')?.addEventListener('click', (e) => {
       e.stopPropagation();
       const modes: Array<'vertical' | 'rtl' | 'ltr'> = ['vertical', 'rtl', 'ltr'];
       const nextIdx = (modes.indexOf(this.currentMode) + 1) % modes.length;
       this.currentMode = modes[nextIdx];
       const btn = expandedSection.querySelector('#btn-reading-mode');
-      if (btn) btn.textContent = `Mode: ${this.currentMode.toUpperCase()}`;
+      if (btn) btn.textContent = this.currentMode.toUpperCase();
       this.onReadingModeChange?.(this.currentMode);
     });
 
