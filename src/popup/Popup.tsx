@@ -60,7 +60,10 @@ export const Popup: React.FC = () => {
   };
 
   return (
-    <div className="p-4 flex flex-col gap-4 text-gray-200">
+    <div
+      style={{ width: '360px', minHeight: '520px', boxSizing: 'border-box' }}
+      className="p-4 flex flex-col gap-4 text-gray-200 bg-darkbg-900"
+    >
       {/* Header */}
       <div className="flex items-center justify-between border-b border-darkbg-700 pb-3">
         <div className="flex items-center gap-2">

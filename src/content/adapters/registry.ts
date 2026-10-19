@@ -1,11 +1,13 @@
 import { SiteAdapter } from '../../types/adapter';
 import { MangaDexAdapter } from './mangadex';
+import { WebtoonsAdapter } from './webtoons';
 import { GenericLongstripAdapter } from './genericLongstrip';
 import { GenericHorizontalAdapter } from './genericHorizontal';
 
 export class AdapterRegistry {
   private static adapters: SiteAdapter[] = [
     new MangaDexAdapter(),
+    new WebtoonsAdapter(),
     new GenericLongstripAdapter(),
     new GenericHorizontalAdapter(),
   ];

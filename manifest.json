@@ -1,4 +1,4 @@
-﻿{
+{
   "manifest_version": 3,
   "name": "MangaVerse - Manga Reading Companion",
   "version": "1.0.0",
@@ -38,8 +38,18 @@
   "content_scripts": [
     {
       "matches": [
+        "*://*.webtoons.com/*",
+        "*://webtoons.com/*",
         "*://*.mangadex.org/*",
-        "*://mangadex.org/*"
+        "*://mangadex.org/*",
+        "*://*.mangakakalot.com/*",
+        "*://*.chapmanganato.to/*",
+        "*://*.manganato.com/*",
+        "*://*.asuracomic.net/*",
+        "*://*.asurascans.com/*",
+        "*://*.reaperscans.com/*",
+        "*://*.flamecomics.xyz/*",
+        "*://*.flamecomics.me/*"
       ],
       "js": ["dist/src/content/index.js"],
       "run_at": "document_idle"

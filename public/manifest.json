@@ -42,8 +42,18 @@
   "content_scripts": [
     {
       "matches": [
+        "*://*.webtoons.com/*",
+        "*://webtoons.com/*",
         "*://*.mangadex.org/*",
-        "*://mangadex.org/*"
+        "*://mangadex.org/*",
+        "*://*.mangakakalot.com/*",
+        "*://*.chapmanganato.to/*",
+        "*://*.manganato.com/*",
+        "*://*.asuracomic.net/*",
+        "*://*.asurascans.com/*",
+        "*://*.reaperscans.com/*",
+        "*://*.flamecomics.xyz/*",
+        "*://*.flamecomics.me/*"
       ],
       "js": ["src/content/index.js"],
       "run_at": "document_idle"
