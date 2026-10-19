@@ -10,13 +10,13 @@ export async function showChapterNotification(
 ): Promise<void> {
   const notifId = crypto.randomUUID();
   let title = `MangaVerse: New Chapter`;
-  let message = `${seriesTitle} — ${chapterLabel}`;
+  let message = `${seriesTitle} - ${chapterLabel}`;
 
   if (type === 'binge_threshold') {
-    title = `🎉 Ready to Binge!`;
+    title = `[MangaVerse] Ready to Binge!`;
     message = `${seriesTitle} reached your binge threshold (${chapterLabel})`;
   } else if (type === 'hiatus_return') {
-    title = `🌟 Series Returned from Hiatus!`;
+    title = `[MangaVerse] Series Returned from Hiatus!`;
     message = `${seriesTitle} has released new chapters!`;
   }
 

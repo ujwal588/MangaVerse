@@ -2,7 +2,7 @@
 
 > **Version:** 1.0.0 (Phase 1 MVP Release)  
 > **Platform:** Chrome Extension Manifest V3 (Chromium: Chrome, Brave, Edge, Opera)  
-> **Architecture:** Local-First (IndexedDB + Dexie.js), Shadow-DOM In-Page HUD, BYOK AI Translation  
+> **Architecture:** Local-First (IndexedDB + Dexie.js), Shadow-DOM In-Page HUD, Manual Local Manga Translation  
 
 ---
 
@@ -13,7 +13,7 @@
 - **Sub-Pixel Scroll & Reading Position Recovery:** Remembers exact scroll offsets and marks chapters as read only when $\ge 85\%$ is consumed (never marking a chapter read just because you opened it).
 - **Intelligent Binge & Backlog Alerts:** Background alarms that notify you when an on-hold series accumulates enough unread chapters to binge (e.g. $\ge 10$ chapters), with multi-source duplicate suppression.
 - **Encapsulated In-Page Reader HUD:** Floating Shadow DOM toolbar that never clashes with host website CSS or leaks user credentials.
-- **BYOK AI Raw Translation:** In-browser Bring-Your-Own-Key support for OpenAI, Anthropic, DeepL, and Google Cloud with local mock simulation.
+- **Manual Local Translation:** The reader HUD and dashboard open MangaTranslator locally so you can upload or paste manga page images and read the translated result there. MangaVerse does not translate panels automatically.
 - **Creative Panel Studio:** Instant wallpaper and sticker generation with customizable dimensions (Mobile 9:16, Desktop 16:9, Sticker 1:1).
 - **100% Local-First & Zero Telemetry:** All library records and reading history reside in your local IndexedDB. Full JSON export/import and one-click data wipe.
 
@@ -62,10 +62,14 @@ npm run build
 2. Click **"Check Now"** to trigger an immediate background check across tracked MangaDex feeds.
 3. If an on-hold series reaches its threshold, a high-priority **"Ready to Binge!"** notification will appear.
 
-### 4. Test Translation Playground (BYOK)
-1. Navigate to the **Translation tab** in the Dashboard.
-2. Enter your own API key for OpenAI, Anthropic, or DeepL (or keep the default Free Local Mock).
-3. Test raw Japanese/Korean phrases in the live test playground.
+### 4. Use Manual Manga Translation
+1. Start MangaTranslator from its project folder on port 7676:
+   ```powershell
+   .\.venv\Scripts\python.exe app.py --port 7676
+   ```
+2. Open a manga chapter and expand the MangaVerse HUD, then click **Open MangaTranslator**. You can also open the Dashboard's **Manual Translation** page.
+3. In MangaTranslator, upload or paste a page image. Configure your provider and API key under **Config → Translation**, then translate the page there.
+4. The HUD shows whether MangaTranslator is online. MangaVerse currently opens the local app; it does not send pages or translate them automatically.
 
 ### 5. Test Backup, Portability & Privacy Wipe
 1. Navigate to the **Settings tab**.

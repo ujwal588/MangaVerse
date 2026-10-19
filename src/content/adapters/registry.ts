@@ -1,6 +1,7 @@
 import { SiteAdapter } from '../../types/adapter';
 import { MangaDexAdapter } from './mangadex';
 import { WebtoonsAdapter } from './webtoons';
+import { RawkumaAdapter } from './rawkuma';
 import { GenericLongstripAdapter } from './genericLongstrip';
 import { GenericHorizontalAdapter } from './genericHorizontal';
 
@@ -8,6 +9,7 @@ export class AdapterRegistry {
   private static adapters: SiteAdapter[] = [
     new MangaDexAdapter(),
     new WebtoonsAdapter(),
+    new RawkumaAdapter(),
     new GenericLongstripAdapter(),
     new GenericHorizontalAdapter(),
   ];

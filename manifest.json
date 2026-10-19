@@ -20,6 +20,10 @@
     "https://*/*",
     "http://*/*"
   ],
+  "host_permissions": [
+    "http://localhost/*",
+    "http://127.0.0.1/*"
+  ],
   "background": {
     "service_worker": "dist/src/background/index.js",
     "type": "module"
@@ -49,7 +53,8 @@
         "*://*.asurascans.com/*",
         "*://*.reaperscans.com/*",
         "*://*.flamecomics.xyz/*",
-        "*://*.flamecomics.me/*"
+        "*://*.flamecomics.me/*",
+        "*://*.rawkuma.net/*"
       ],
       "js": ["dist/src/content/index.js"],
       "run_at": "document_idle"

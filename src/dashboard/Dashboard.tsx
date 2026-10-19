@@ -32,7 +32,7 @@ export const Dashboard: React.FC = () => {
               { id: 'library', label: 'Library', icon: BookOpen },
               { id: 'updates', label: 'Updates', icon: Bell },
               { id: 'queue', label: 'Queue & Radar', icon: Calendar },
-              { id: 'translation', label: 'Translation (BYOK)', icon: Languages },
+              { id: 'translation', label: 'Manual Translation', icon: Languages },
               { id: 'studio', label: 'Creative Studio', icon: Palette },
               { id: 'social', label: 'Social Rooms', icon: Users },
               { id: 'analytics', label: 'Insights', icon: BarChart3 },

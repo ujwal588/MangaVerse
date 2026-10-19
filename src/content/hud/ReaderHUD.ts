@@ -3,9 +3,10 @@ export interface ReaderHUDProps {
   chapterLabel: string;
   initialPercent?: number;
   isInitiallyCompleted?: boolean;
+  mtPort?: number;
   onReadingModeChange?: (mode: 'ltr' | 'rtl' | 'vertical') => void;
   onToggleCompleted?: (isCompleted: boolean) => void;
-  onToggleTranslation?: (isTranslating: boolean) => void;
+  onOpenTranslator?: () => void;
   onOpenDashboard?: () => void;
 }
 
@@ -14,15 +15,16 @@ export class ReaderHUD {
   private shadowRoot: ShadowRoot;
   private isExpanded: boolean = false;
   private isCompleted: boolean = false;
-  private isTranslating: boolean = false;
   private progressPercent: number = 0;
   private currentMode: 'ltr' | 'rtl' | 'vertical' = 'vertical';
+  private mtPort: number;
+  private mtAvailable: boolean | null = null; // null = checking
 
   private seriesTitle: string;
   private chapterLabel: string;
   private onReadingModeChange?: (mode: 'ltr' | 'rtl' | 'vertical') => void;
   private onToggleCompleted?: (isCompleted: boolean) => void;
-  private onToggleTranslation?: (isTranslating: boolean) => void;
+  private onOpenTranslator?: () => void;
   private onOpenDashboard?: () => void;
 
   constructor(props: ReaderHUDProps) {
@@ -30,9 +32,10 @@ export class ReaderHUD {
     this.chapterLabel = props.chapterLabel;
     this.progressPercent = props.initialPercent ?? 0;
     this.isCompleted = props.isInitiallyCompleted ?? false;
+    this.mtPort = props.mtPort ?? 7676;
     this.onReadingModeChange = props.onReadingModeChange;
     this.onToggleCompleted = props.onToggleCompleted;
-    this.onToggleTranslation = props.onToggleTranslation;
+    this.onOpenTranslator = props.onOpenTranslator;
     this.onOpenDashboard = props.onOpenDashboard;
 
     this.hostElement = document.createElement('div');
@@ -40,6 +43,35 @@ export class ReaderHUD {
     this.shadowRoot = this.hostElement.attachShadow({ mode: 'open' });
 
     this.render();
+    // Async server health check
+    this.checkMtStatus();
+  }
+
+  private async checkMtStatus(): Promise<void> {
+    try {
+      const resp = await chrome.runtime.sendMessage({ type: 'MT_CHECK', port: this.mtPort });
+      this.mtAvailable = resp?.available === true;
+    } catch {
+      this.mtAvailable = false;
+    }
+    this.updateMtStatusDot();
+  }
+
+  private updateMtStatusDot(): void {
+    const dot = this.shadowRoot.querySelector<HTMLElement>('.mv-mt-dot');
+    const label = this.shadowRoot.querySelector<HTMLElement>('.mv-mt-label');
+    if (!dot || !label) return;
+
+    if (this.mtAvailable === null) {
+      dot.style.background = '#9ca3af';
+      label.textContent = 'Checking MT...';
+    } else if (this.mtAvailable) {
+      dot.style.background = '#34d399';
+      label.textContent = 'MT Ready';
+    } else {
+      dot.style.background = '#f87171';
+      label.textContent = 'MT Offline';
+    }
   }
 
   public mount(): void {
@@ -116,15 +148,20 @@ export class ReaderHUD {
         <button class="mangaverse-btn" id="btn-toggle-read">
           ${this.isCompleted ? 'Mark Unread' : 'Mark as Read'}
         </button>
-        <button class="mangaverse-btn" id="btn-translate">
-          ${this.isTranslating ? '[AI] Translating' : '[AI] Translate'}
-        </button>
         <button class="mangaverse-btn" id="btn-reading-mode">
           ${this.currentMode.toUpperCase()}
         </button>
         <button class="mangaverse-btn mangaverse-btn-primary" id="btn-dashboard">
           Library
         </button>
+      </div>
+      <button class="mangaverse-btn mangaverse-translator-link" id="btn-open-translator" title="Open MangaTranslator to upload a page image manually">
+        Open MangaTranslator
+      </button>
+      <div class="mangaverse-mt-status">
+        <span class="mv-mt-dot"></span>
+        <span class="mv-mt-label">Checking MT...</span>
+        <button class="mangaverse-btn mangaverse-btn-sm" id="btn-mt-recheck">&#8635;</button>
       </div>
     `;
 
@@ -139,16 +176,9 @@ export class ReaderHUD {
       if (tag) tag.style.display = this.isCompleted ? 'inline-flex' : 'none';
     });
 
-    expandedSection.querySelector('#btn-translate')?.addEventListener('click', (e) => {
+    expandedSection.querySelector('#btn-open-translator')?.addEventListener('click', (e) => {
       e.stopPropagation();
-      this.isTranslating = !this.isTranslating;
-      this.onToggleTranslation?.(this.isTranslating);
-      const btn = expandedSection.querySelector<HTMLElement>('#btn-translate');
-      if (btn) {
-        btn.textContent = this.isTranslating ? '[AI] Translating (ON)' : '[AI] Translate';
-        btn.style.background = this.isTranslating ? 'rgba(168, 85, 247, 0.4)' : '';
-        btn.style.borderColor = this.isTranslating ? '#a855f7' : '';
-      }
+      this.onOpenTranslator?.();
     });
 
     expandedSection.querySelector('#btn-reading-mode')?.addEventListener('click', (e) => {
@@ -166,11 +196,21 @@ export class ReaderHUD {
       this.onOpenDashboard?.();
     });
 
+    expandedSection.querySelector('#btn-mt-recheck')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      this.mtAvailable = null;
+      this.updateMtStatusDot();
+      this.checkMtStatus();
+    });
+
     container.appendChild(pill);
     container.appendChild(expandedSection);
 
     this.shadowRoot.innerHTML = '';
     this.shadowRoot.appendChild(styleLink);
     this.shadowRoot.appendChild(container);
+
+    // Run the MT dot update after DOM is ready
+    setTimeout(() => this.updateMtStatusDot(), 0);
   }
 }

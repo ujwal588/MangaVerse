@@ -2,11 +2,11 @@ import { setupAlarms } from './alarms';
 import { performUpdateCheck } from './updateChecker';
 import { resolveOrCreateSeries } from '../services/seriesResolver';
 import { db } from '../services/db';
-import { Chapter, ReadingProgress } from '../types/library';
+import { ReadingProgress } from '../types/library';
 import {
   ExtensionMessage,
   PageInitResponse,
-  ProxyFetchImageResponse,
+  MtCheckResponse,
 } from '../types/messages';
 
 // Initialize alarms on extension install / update
@@ -170,33 +170,35 @@ async function handleMessage(message: ExtensionMessage): Promise<any> {
       };
     }
 
-    case 'PROXY_FETCH_IMAGE': {
-      try {
-        const resp = await fetch(message.imageUrl);
-        const blob = await resp.blob();
-        return new Promise<ProxyFetchImageResponse>((resolve) => {
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            resolve({
-              type: 'PROXY_FETCH_IMAGE_RESPONSE',
-              success: true,
-              dataUrl: reader.result as string,
-            });
-          };
-          reader.readAsDataURL(blob);
-        });
-      } catch (e) {
-        return {
-          type: 'PROXY_FETCH_IMAGE_RESPONSE',
-          success: false,
-          error: String(e),
-        };
-      }
-    }
-
     case 'OPEN_DASHBOARD': {
       const dashboardUrl = chrome.runtime.getURL('src/dashboard/index.html');
       chrome.tabs.create({ url: dashboardUrl });
+      return { success: true };
+    }
+
+    case 'MT_CHECK': {
+      const port = (message as any).port ?? 7676;
+      // MangaTranslator moved its Gradio API under /gradio_api in v6.
+      // Keep the legacy path for older installations.
+      for (const path of ['/gradio_api/info', '/info']) {
+        try {
+          const resp = await fetch(`http://localhost:${port}${path}`, {
+            signal: AbortSignal.timeout(2000),
+          });
+          if (resp.ok) {
+            const result: MtCheckResponse = { type: 'MT_CHECK_RESPONSE', available: true };
+            return result;
+          }
+        } catch {
+          // Try the next supported health endpoint.
+        }
+      }
+      return { type: 'MT_CHECK_RESPONSE', available: false };
+    }
+
+    case 'OPEN_MANGA_TRANSLATOR': {
+      const port = (message as any).port ?? 7676;
+      await chrome.tabs.create({ url: `http://localhost:${port}` });
       return { success: true };
     }
 

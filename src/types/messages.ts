@@ -9,9 +9,10 @@ export type ExtensionMessageType =
   | 'GET_SERIES_STATE'
   | 'TRIGGER_CHECK_UPDATES'
   | 'UPDATE_CHECK_COMPLETE'
-  | 'PROXY_FETCH_IMAGE'
-  | 'PROXY_FETCH_IMAGE_RESPONSE'
-  | 'OPEN_DASHBOARD';
+  | 'OPEN_DASHBOARD'
+  | 'OPEN_MANGA_TRANSLATOR'
+  | 'MT_CHECK'
+  | 'MT_CHECK_RESPONSE';
 
 export interface PageInitMessage {
   type: 'PAGE_INIT';
@@ -39,18 +40,6 @@ export interface UpdateProgressMessage {
   isCompleted: boolean;
 }
 
-export interface ProxyFetchImageMessage {
-  type: 'PROXY_FETCH_IMAGE';
-  imageUrl: string;
-}
-
-export interface ProxyFetchImageResponse {
-  type: 'PROXY_FETCH_IMAGE_RESPONSE';
-  success: boolean;
-  dataUrl?: string;
-  error?: string;
-}
-
 export interface CheckUpdatesMessage {
   type: 'TRIGGER_CHECK_UPDATES';
 }
@@ -61,11 +50,32 @@ export interface CheckUpdatesResponse {
   notificationsGenerated: NotificationRecord[];
 }
 
+export interface OpenDashboardMessage {
+  type: 'OPEN_DASHBOARD';
+}
+
+export interface OpenMangaTranslatorMessage {
+  type: 'OPEN_MANGA_TRANSLATOR';
+  port?: number;
+}
+
+export interface MtCheckMessage {
+  type: 'MT_CHECK';
+  port: number;
+}
+
+export interface MtCheckResponse {
+  type: 'MT_CHECK_RESPONSE';
+  available: boolean;
+}
+
 export type ExtensionMessage =
   | PageInitMessage
   | PageInitResponse
   | UpdateProgressMessage
-  | ProxyFetchImageMessage
-  | ProxyFetchImageResponse
   | CheckUpdatesMessage
-  | CheckUpdatesResponse;
+  | CheckUpdatesResponse
+  | OpenDashboardMessage
+  | OpenMangaTranslatorMessage
+  | MtCheckMessage
+  | MtCheckResponse;

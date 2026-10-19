@@ -5,3 +5,9 @@ dist/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+MangaTranslator/
+*.zip
+check_encoding.cjs
+check_encoding.js
+find_nonascii.cjs
+package_ext.cjs

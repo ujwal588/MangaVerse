@@ -1,13 +1,13 @@
 import { AdapterRegistry } from './adapters/registry';
 import { ScrollTracker } from './scrollTracker';
 import { ReaderHUD } from './hud/ReaderHUD';
-import { InPageTranslationController } from './translation/translationController';
-import { InPageOverlayRenderer } from './translation/overlayRenderer';
 import { PageInitMessage, PageInitResponse, UpdateProgressMessage } from '../types/messages';
 
 let activeHUD: ReaderHUD | null = null;
 let activeTracker: ScrollTracker | null = null;
 let currentTrackingUrl: string = '';
+
+const MT_PORT = 7676;
 
 async function initContentScript(retryCount = 0) {
   const url = window.location.href;
@@ -52,7 +52,6 @@ async function initContentScript(retryCount = 0) {
       activeTracker.stop();
       activeTracker = null;
     }
-
     // Send page init to background worker
     const initMsg: PageInitMessage = {
       type: 'PAGE_INIT',
@@ -70,37 +69,18 @@ async function initContentScript(retryCount = 0) {
 
     const { series, currentChapter, progress } = response;
 
-    // Initialize Translation Controller
-    const translationController = new InPageTranslationController(
-      { provider: 'gemini', targetLang: 'en' },
-      series.id
-    );
-
-    // Global Shift key listener to toggle original raw comic text
-    window.addEventListener('keydown', (e) => {
-      if (e.key === 'Shift') {
-        InPageOverlayRenderer.toggleGlobalOriginal(true);
-      }
-    });
-
-    window.addEventListener('keyup', (e) => {
-      if (e.key === 'Shift') {
-        InPageOverlayRenderer.toggleGlobalOriginal(false);
-      }
-    });
-
     // Create Reader HUD
     const hud = new ReaderHUD({
       seriesTitle: series.title,
       chapterLabel: currentChapter.chapterLabel,
       initialPercent: progress?.scrollPositionPercent || 0,
       isInitiallyCompleted: currentChapter.isRead,
+      mtPort: MT_PORT,
       onOpenDashboard: () => {
         chrome.runtime.sendMessage({ type: 'OPEN_DASHBOARD' });
       },
-      onToggleTranslation: (isTranslating) => {
-        const pageElements = adapter.extractPageElements(document);
-        translationController.setEnabled(isTranslating, pageElements);
+      onOpenTranslator: () => {
+        chrome.runtime.sendMessage({ type: 'OPEN_MANGA_TRANSLATOR', port: MT_PORT });
       },
       onToggleCompleted: (isCompleted) => {
         const updateMsg: UpdateProgressMessage = {
@@ -184,4 +164,3 @@ window.addEventListener('popstate', () => {
   lastObservedUrl = window.location.href;
   initContentScript();
 });
-
