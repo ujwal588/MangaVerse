@@ -13,15 +13,11 @@ export default defineConfig({
         dashboard: resolve(__dirname, 'src/dashboard/index.html'),
         offscreen: resolve(__dirname, 'src/offscreen/index.html'),
         background: resolve(__dirname, 'src/background/index.ts'),
-        content: resolve(__dirname, 'src/content/index.ts'),
       },
       output: {
         entryFileNames: (chunkInfo) => {
           if (chunkInfo.name === 'background') {
             return 'src/background/index.js';
-          }
-          if (chunkInfo.name === 'content') {
-            return 'src/content/index.js';
           }
           return 'assets/[name]-[hash].js';
         },
